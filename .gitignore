@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
+*.gpkg
+*.pdf
+*.gdb
+data/*
+output/*
+resources/*
+*.html

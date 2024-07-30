@@ -1,0 +1,286 @@
+---
+title: "Whirling Disease - Priority Regions"
+author: "Chris Madsen"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::robobook:
+    self_contained: true
+    highlight: tango
+---
+<style type="text/css">
+page-inner {
+  padding-right: 0px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(sf)
+library(readxl)
+
+WD_sensitive_species_list = str_to_title(c(
+    'cutthroat trout',
+    'coho salmon',
+    'rainbow trout',
+    'sockeye salmon',
+    'chinook salmon',
+    'mountain whitefish',
+    'Atlantic salmon',
+    'brown trout',
+    'bull trout',
+    'brook trout'))
+
+SARA_species_list = read_excel('data/SARA-listed_Canadian_FW_fish.xlsx')
+
+# SARA_species_list = c(
+#   'cutthroat trout',
+#   'White Sturgeon',
+#   'bull trout',
+#   'sculpin',
+#   'pygmy sculpin',
+#   'green sturgeon',
+#   'mountain sucker',
+#   'Nooksack Dace',
+#   'Rainbow trout',
+#   'Rocky Mountain Ridged Mussel',
+#   'Rocky Mountain Sculpin',
+#   'Salish Sucker',
+#   'Shorthead Sculpin',
+#   'Speckled Dace')
+
+species_in_common = WD_sensitive_species_list[WD_sensitive_species_list %in% SARA_species_list$Species]
+# species_in_common = c(
+#   'Cutthroat Trout',
+#   'Rainbow Trout',
+#   'Bull Trout'
+# )
+```
+
+List of fish species identified as sensitive to Whirling disease: `r stringr::str_to_title(paste0(WD_sensitive_species_list, collapse = ', '))`.
+
+List of [Aquatic SARA Schedule-1 listed species](https://www.dfo-mpo.gc.ca/species-especes/sara-lep/cnfasar-fnceap/priority-priorite/profiles/fraser-eng.html#table-schedule1): `r stringr::str_to_title(paste0(SARA_species_list$Species, collapse = ', '))`.
+
+List of species in common between the two lists: `r stringr::str_to_title(paste0(species_in_common, collapse = ', '))`.
+
+```{r read_in_data}
+# Point occurrence data for whirling disease-sensitive fish species, data 
+# drawn from the BC Data Catalogue fish layer.
+occ_dat_b = sf::read_sf('data/sens_fish_sp_occurrence_data.gpkg')
+
+# DFO polygons showing the presence of certain populations of SARA-listed
+# and COSEWIC-listed freshwater fish species. Data comes from DFO, 
+# for more detail, see script 'download_and_filter_DFO_SARA_occ_data_to_BC.R'
+dfo_sara = sf::read_sf('data/dfo_sara_in_col_fras_priority_area.gpkg') |> 
+  st_transform(4326) |> 
+  st_make_valid()
+
+# Only keep species that are also Aquatic SARA listed species.
+occ_dat_b = occ_dat_b |> 
+  dplyr::filter(Species %in% species_in_common)
+
+# See number of rows by species
+knitr::kable(occ_dat_b |> 
+  sf::st_drop_geometry() |> 
+  count(Species, sort = T, name = 'count'))
+
+# Filter occ_dat_b for just those points inside the DFO polygons?
+occ_dat_b = occ_dat_b |>
+  dplyr::filter(sf::st_intersects(geom, sf::st_union(dfo_sara), sparse = F))
+
+# Bring in species at risk layer.
+sp = read_sf('W:/CMadsen/Projects/SpeciesAtRisk/species_ecosystems_at_risk_publically_available.shp') |> 
+  st_transform(4326)
+
+sp = st_make_valid(sp)
+
+# Make polygon for Fraser River and Colombia River basin polygon
+fr = read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
+  dplyr::summarise()
+cl = read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
+  dplyr::summarise()
+
+pr = fr |> 
+  bind_rows(cl) |> 
+  dplyr::summarise()
+
+# Federal critical habitat
+fch = sf::read_sf('W:/CMadsen/shared_data_sets/DFO_SARA_CriticalHabitat_in_ColFras_Regions.shp')
+
+# Just keep occ_dat and aquatic SAR inside our priority region
+occ_dat_f = occ_dat_b |> 
+  dplyr::filter(sf::st_intersects(geom, pr, sparse = F))
+
+sp_f = sp |> 
+  dplyr::filter(sf::st_intersects(geometry, pr, sparse = F))
+
+# Get surrounding polygons (e.g. Alberta, Washington, rest of BC, etc.)
+stateprov_bg = rnaturalearth::ne_states(country = c("Canada","United States of America")) |>
+  st_as_sf() |>
+  dplyr::select(state_prov = name,
+                country = admin) |> 
+  dplyr::filter(state_prov %in% c("Washington","British Columbia","Alberta","Idaho","Montana")) |> 
+  dplyr::mutate(label = state_prov) |> 
+  dplyr::mutate(label = ifelse(label == 'British Columbia',NA,label))
+
+species_dat = dplyr::bind_rows(
+  sp_f |> dplyr::select(Species = ENG_NAME_F, 
+                        SCI_NAME) |> 
+    dplyr::mutate(DataSource = 'Aquatic SAR CDC'),
+  occ_dat_f
+)
+```
+
+```{r make_to_grid}
+# library(terra)
+# templ_r = terra::rast(pr, res = 0.1)
+# 
+# # For each species, make a raster according to the raster template.
+# sp_polys = occ_dat_f |> 
+#   group_by(Species) |> 
+#   group_split() |> 
+#   lapply(\(x) {
+#     this_species = unique(x$Species)
+#     st_as_sf(as.polygons(rasterize(x, templ_r))) |> 
+#       mutate(Species = this_species)
+#     })
+# A value of 1 indicates the presence of a given species in that pixel.
+grid_geometry = sf::st_make_grid(pr, cellsize = 0.1)
+
+grid_sf = tibble(cell_id = 1:length(grid_geometry)) |>
+  st_set_geometry(grid_geometry)
+
+# Mask for just priority region.
+grid_sf = grid_sf |> 
+  dplyr::filter(sf::st_intersects(geometry, pr, sparse = F))
+
+number_species = sf::st_join(
+  occ_dat_f |> 
+    dplyr::select(Species),
+  grid_sf
+) |> 
+  sf::st_drop_geometry() |> 
+  dplyr::distinct() |> 
+  dplyr::group_by(cell_id) |> 
+  dplyr::summarise(species_present = paste0(Species, collapse = ', '),
+                   number_species = 1 + stringr::str_detect(species_present, ','))
+  
+grid_sf = grid_sf |> 
+  dplyr::left_join(number_species) |> 
+  mutate(number_species = replace_na(number_species, 0),
+         species_present = replace_na(species_present, 'None'))
+
+grid_sf = grid_sf |> 
+  mutate(number_species_f = factor(number_species, levels = c(0,1,2,3)))
+
+grid_cell_res = st_area(grid_sf[1,])/1000000
+
+base_plot = ggplot() + 
+  geom_sf(data = stateprov_bg, fill = 'lightgrey',col = 'grey') + 
+  geom_sf_text(data = stateprov_bg, aes(label = label), nudge_y = 1) +
+  geom_sf(data = pr, fill = 'lightblue') + 
+  theme(panel.background = element_rect(fill = 'lightblue'))
+
+```
+
+### Grid of SARA fish species sensitive to Whirling Disease {.tabset}
+
+#### Number of Species
+```{r, fig.width=10, fig.height=8}
+base_plot + 
+  geom_sf(data = grid_sf, aes(fill = number_species_f)) + 
+  labs(fill = 'Number of Species',
+       title = paste0('Grid resolution: ~',round(grid_cell_res,0),' km^2')) + 
+  scale_fill_viridis_d() + 
+  coord_sf(xlim = c(-128,-114), ylim = c(48,56.5))
+```
+
+#### Species Composition
+```{r, fig.width=10, fig.height=8}
+base_plot + 
+  geom_sf(data = grid_sf, aes(fill = species_present)) + 
+  labs(fill = 'Species Composition',
+       title = paste0('Grid resolution: ~',round(grid_cell_res,0),' km^2')) + 
+  coord_sf(xlim = c(-128,-114), ylim = c(48,56.5))
+```
+
+## Grid of SARA species with Provincial Aquatic SAR layer and Federal Critical Habitat layer
+
+```{r, fig.width=10, fig.height=8}
+base_plot + 
+  geom_sf(data = grid_sf, aes(fill = number_species_f)) +
+  geom_sf(data = sp_f, fill = 'darkgreen', col = 'darkgreen') + 
+  geom_sf(data = fch, fill = 'red', col = 'red') +
+  coord_sf(xlim = c(-128,-114), ylim = c(48,56.5)) +
+  labs(title = paste0('Grid resolution: ~',round(grid_cell_res,0),' km^2'),
+       fill = 'Abundance of \nSensitive \nFish Species',
+       x = 'Longitude', y = 'Latitude',
+       caption = 'Aquatic SAR in dark green, SARA Critical Habitat in red') +
+  scale_fill_viridis_d()
+
+```
+
+## Interactive Leaflet Map for exploration
+
+```{r}
+library(leaflet)
+
+mypal = leaflet::colorNumeric(
+  palette = 'Spectral',
+  domain = grid_sf$number_species,
+  reverse = T
+)
+
+mypal_legend = leaflet::colorNumeric(
+  palette = 'Spectral',
+  domain = grid_sf$number_species,
+  reverse = F
+)
+
+fch_wgs84 = st_transform(fch, 4326)
+
+leaflet() |> 
+  addTiles() |> 
+  addMapPane(name = 'SARA_fish', zIndex = 400) |> 
+  addMapPane(name = 'Prov_SAR', zIndex = 600) |> 
+  addMapPane(name = 'Fed_CH', zIndex = 800) |> 
+  addPolygons(data = grid_sf,
+              label = ~species_present,
+              color = ~mypal(number_species),
+              weight = 1,
+              fillColor = ~mypal(number_species),
+              fillOpacity = 0.65,
+              group = 'Sensitive SARA Fish',
+              options = pathOptions(pane = 'SARA_fish')) |> 
+  addPolygons(data = sp_f,
+              fillColor = 'darkgreen',
+              fillOpacity = 0.85,
+              color = 'darkgreen',
+              label = ~ENG_NAME,
+              weight = 1,
+              group = 'Aquatic Provincial SAR',
+              options = pathOptions(pane = 'Prov_SAR')) |> 
+  addPolygons(data = fch_wgs84,
+              fillColor = 'red',
+              fillOpacity = 0.85,
+              color = 'red',
+              weight = 1,
+              group = 'Federal Critical Habitat',
+              options = pathOptions(pane = 'Fed_CH')
+              ) |> 
+  addLegend(pal = mypal_legend,
+            values = grid_sf$number_species,
+            title = lapply('Number of <br>WD Sensitive <br>SARA Fish <br>Species', htmltools::HTML),
+            labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE))) |> 
+  addScaleBar('bottomright') |> 
+  addLayersControl(position = 'bottomleft',
+                   overlayGroups = c(
+                     'Sensitive SARA Fish',
+                     'Aquatic Provincial SAR',
+                     'Federal Critical Habitat'),
+                   options = layersControlOptions(collapsed = F)) |> 
+  leaflet.extras::addResetMapButton()
+
+```
+
