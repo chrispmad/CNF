@@ -2,12 +2,16 @@
 title: "Watershed-scale Analysis of SAR and High-Priority Waterbodies"
 author: "Chris Madsen and John Phelan"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
+library(sf)
+library(viridis)
 ```
 
 # This is a BIG TITLE.
@@ -15,11 +19,18 @@ library(tidyverse)
 ## Smaller Title. 
 
 ```{r reading_in_data}
-ggplot(iris) + 
-  geom_point(aes(x = Petal.Width, y = Petal.Length))
+
 ```
 
 ```{r}
+data1<-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
+head(data1)
+summary(data1$TotalInspections)
+data_sub<-data1[data1$TotalInspections <10,]
+names(data1)
+plot1<-ggplot()+
+  geom_sf(data = data_sub, aes(fill = TotalInspections))
+  plot1+scale_fill_viridis_c(option = "plasma")
 
 ```
 
