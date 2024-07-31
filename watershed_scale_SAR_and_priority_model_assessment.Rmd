@@ -19,18 +19,27 @@ library(viridis)
 ## Smaller Title. 
 
 ```{r reading_in_data}
-
+data1<-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
 ```
 
 ```{r}
-data1<-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
+data1 |> 
+  sf::st_drop_geometry() |> 
+  ggplot() + 
+  geom_histogram(aes(TotalInspections))
+```
+
+```{r}
 head(data1)
+
 summary(data1$TotalInspections)
-data_sub<-data1[data1$TotalInspections <10,]
-names(data1)
+
+data_sub<-data1[data1$TotalInspections >= 1000,]
+
 plot1<-ggplot()+
-  geom_sf(data = data_sub, aes(fill = TotalInspections))
+  geom_sf(data = data_sub, aes(fill = TotalInspections)) +
   plot1+scale_fill_viridis_c(option = "plasma")
 
+plot1
 ```
 
