@@ -14,6 +14,8 @@ library(sf)
 library(viridis)
 library(bcdata)
 library(bcmaps)
+library(raster)
+library(geodata)
 ```
 
 # This is a BIG TITLE.
@@ -37,6 +39,17 @@ regs = bcmaps::nr_regions()
 
 # species-at-risk
 sara = read_sf("data/dfo_sara_in_col_fras_priority_area.gpkg")
+
+#tmax<-getData('CMIP6', var='tmax', res=10, rcp=85, model='AC', year=70)
+bioclim<-worldclim_global(var="bio", res=10, path = "./data") # gets all variables - what they are https://www.worldclim.org/data/bioclim.html
+plot(bioclim)# have a look
+names(bioclim)# whats the name?
+
+cmidata<-cmip6_world("ACCESS-CM2", ssp = "585", var = "bioc", res = 10, time = "2021-2040",path="./data/CMI/")
+
+plot(cmidata$bio01)
+
+
 ```
 
 ```{r}
