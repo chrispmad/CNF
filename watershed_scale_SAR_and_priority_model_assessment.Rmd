@@ -24,7 +24,19 @@ library(bcmaps)
 # Zebra Quagga Prioritization Model
 zqpm <-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
 
+# Watersheds of some scale
+if(!file.exists('data/watershed_groups.gpkg')){
+  ws = bcdc_query_geodata('freshwater-atlas-watershed-groups') |>  # This one has 246 rows
+    collect()
+  sf::write_sf('data/watershed_groups.gpkg')} else {
+    ws = sf::read_sf('data/watershed_groups.gpkg')
+  }
 
+# Regions (just in case)
+regs = bcmaps::nr_regions()
+
+# species-at-risk
+sara = read_sf("data/dfo_sara_in_col_fras_priority_area.gpkg")
 ```
 
 ```{r}
