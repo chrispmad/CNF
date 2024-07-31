@@ -12,14 +12,19 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(sf)
 library(viridis)
+library(bcdata)
+library(bcmaps)
 ```
 
 # This is a BIG TITLE.
 
-## Smaller Title. 
+## Datasets
 
 ```{r reading_in_data}
-data1<-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
+# Zebra Quagga Prioritization Model
+zqpm <-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
+
+
 ```
 
 ```{r}
