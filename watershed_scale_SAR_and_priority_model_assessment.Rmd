@@ -40,7 +40,7 @@ if(!file.exists('data/watershed_groups.gpkg')){
 regs = bcmaps::nr_regions()
 
 # species-at-risk
-sara = read_sf("data/dfo_sara_in_col_fras_priority_area.gpkg")
+#sara = read_sf("data/dfo_sara_in_col_fras_priority_area.gpkg")
 
 #tmax<-getData('CMIP6', var='tmax', res=10, rcp=85, model='AC', year=70)
 bioclim<-worldclim_global(var="bio", res=10, path = "./data") # gets all variables
@@ -53,9 +53,14 @@ renames<-gsub(" ", "_", renames)
 
 #https://www.carbonbrief.org/cmip6-the-next-generation-of-climate-models-explained/
 #https://search.r-project.org/CRAN/refmans/geodata/html/cmip6.html
+# explalation of ssp codes https://www.carbonbrief.org/cmip6-the-next-generation-of-climate-models-explained/
 cmidata<-cmip6_world("ACCESS-CM2", ssp = "585", var = "bioc", res = 5, time = "2021-2040",path="./data/CMI/")
 names(cmidata)<-renames
 
+
+```
+Some plots as I learn. JP
+```{r}
 
 bc<-bc_bound()
 crs(bc)
@@ -84,29 +89,13 @@ xmin <- -125;xmax <- -115;ymin <- 48;ymax <- 52
 p1<-ggplot() +
   geom_sf(data = st_transform(ws, crs=4326)) +
   geom_raster(data = df, aes(x = x, y = y, fill = z.Annual_Mean_Temperature), alpha = 0.5)
-p1
+#p1
 p2<-p1+coord_sf(xlim = c(xmin, xmax), ylim = c(ymin, ymax))
-ggsave("./images/climate.png", width = 10, height = 8, dpi = 300)
+#("./images/climate.png", width = 10, height = 8, dpi = 300)
+p2
 ```
 
 ```{r}
-data1 |> 
-  sf::st_drop_geometry() |> 
-  ggplot() + 
-  geom_histogram(aes(TotalInspections))
-```
 
-```{r}
-head(data1)
-
-summary(data1$TotalInspections)
-
-data_sub<-data1[data1$TotalInspections >= 1000,]
-
-plot1<-ggplot()+
-  geom_sf(data = data_sub, aes(fill = TotalInspections)) +
-  plot1+scale_fill_viridis_c(option = "plasma")
-
-plot1
 ```
 
