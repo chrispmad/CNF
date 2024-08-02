@@ -20,6 +20,7 @@ library(raster)
 library(geodata)
 library(dismo)
 library(ggpattern)
+library(RColorBrewer)
 ```
 
 # This is a BIG TITLE.
@@ -128,12 +129,14 @@ ggplot() +
 
 ```{r everything_by_Subwatershed}
 #define the color palette
+sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
+
 ggplot()+
   geom_sf(data = bc, fill = "lightgrey", color = "darkgrey", alpha = 0.5)+ 
   geom_sf(data = ws[!is.na(ws$number_distinct_SAR) | ws$WATERSHED_GROUP_NAME %in% ws_Use$WATERSHED_GROUP_NAME,], aes(fill = as.factor(number_distinct_SAR))) +
-  scale_fill_brewer(palette = 'Greens', na.value = 'grey') +
+  scale_fill_manual(values =  sp_colors, na.value = "grey")+
   geom_sf(data= zqpmUseFilt, fill = "red", color="dark red") +
-  geom_sf(data= ws_Use, fill = "transparent", color = "dark blue", linewidth = 1) + 
+  geom_sf(data= ws_Use, fill = "transparent", color = "purple", linewidth = 1) + 
   labs(title = "Number of Distict SAR Species and High-use Subwatersheds",
        subtitle = "High use-Subwaterhsed outlined in blue. High use waterbodies in red",
        fill = "Number of species at risk") +
