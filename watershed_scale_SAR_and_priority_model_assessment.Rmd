@@ -13,15 +13,16 @@ editor_options:
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
                       fig.width = 10, fig.height = 8)
 library(tidyverse)
-library(sf)
-library(viridis)
+library(sf) # shapes
+library(viridis) # colors
 library(bcdata)
 library(bcmaps)
 library(raster)
 library(geodata)
-library(dismo)
-library(ggpattern)
-library(RColorBrewer)
+library(dismo) # getting the climate models and other cool things
+library(ggpattern) # hatching ggplot
+library(RColorBrewer) # colors
+library(ggspatial) # scale bar
 ```
 
 # Priority of Waterbodies Established via the ZQ Mussel Prioritization Model.
@@ -119,16 +120,31 @@ bc<-bc_bound()
 ```{r high_use_waterbodies_by_Subwatershed}
 ggplot()+
   geom_sf(data = ws, fill = "lightgrey")+ # simplify geom?
-  geom_sf(data=ws_Use, fill = "orange", color = "black")+
-  geom_sf(data=zqpmUseFilt, fill = "red", color="red")
+  geom_sf(data=ws_Use, fill = "purple", color = "black", alpha = 0.3)+
+  geom_sf(data=zqpmUseFilt, fill = "red", color="dark red")+
+  labs(title = "High use waterbodies by watershed")+
+  ggthemes::theme_map()+
+    theme(plot.title = element_text(size = rel(3), face = "bold"),
+        plot.subtitle = element_text(size = rel(2)),
+        legend.title = element_text(size = rel(1.8)),
+        legend.text = element_text(size = rel(1.2))
+    )
 ```
 
 ### Number of Distinct SAR sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
+sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
 ggplot() + 
-  geom_sf(data = ws, aes(fill = number_distinct_SAR)) + 
-  scale_fill_fermenter(palette = 'Dark2') + 
-  labs(title = 'Number of Distinct SAR by Subwatershed')
+  geom_sf(data = ws, aes(fill = as.factor(number_distinct_SAR))) + 
+  scale_fill_manual(values =  sp_colors, na.value = "grey")+
+  labs(title = 'Number of Distinct SAR by Subwatershed',
+       fill = "No. species at risk")+
+  ggthemes::theme_map()+
+  theme(plot.title = element_text(size = rel(3), face = "bold"),
+        plot.subtitle = element_text(size = rel(2)),
+        legend.title = element_text(size = rel(1.8)),
+        legend.text = element_text(size = rel(1.2))
+        )
 ```
 
 ### Complete Figure
@@ -141,12 +157,17 @@ ggplot()+
   geom_sf(data = ws[!is.na(ws$number_distinct_SAR) | ws$WATERSHED_GROUP_NAME %in% ws_Use$WATERSHED_GROUP_NAME,], aes(fill = as.factor(number_distinct_SAR))) +
   scale_fill_manual(values =  sp_colors, na.value = "grey")+
   geom_sf(data= zqpmUseFilt, fill = "red", color="dark red") +
-  geom_sf(data= ws_Use, fill = "transparent", color = "purple", linewidth = 1) + 
-  labs(title = "Number of Distict SAR Species and High-use Subwatersheds",
-       subtitle = "High use-Subwaterhsed outlined in blue. High use waterbodies in red",
-       fill = "Number of species at risk") +
+  geom_sf(data= ws_Use, fill = "transparent", color = "purple", linewidth = 0.8) + 
+  labs(title = "Number of Distict SAR Species and High use sub-watersheds",
+       subtitle = "High use sub-watershed outlined in purple. High use waterbodies in red",
+       fill = "No. species at risk") +
+  annotation_scale(location = "br", width_hint = 0.5) +
   ggthemes::theme_map()+
-  theme(legend.title = element_text(size = rel(1.8)))
+  theme(plot.title = element_text(size = rel(3), face = "bold"),
+        plot.subtitle = element_text(size = rel(2)),
+        legend.title = element_text(size = rel(1.8)),
+        legend.text = element_text(size = rel(1.2))
+        )
   
 ```
 
