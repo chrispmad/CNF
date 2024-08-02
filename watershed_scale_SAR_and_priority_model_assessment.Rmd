@@ -56,12 +56,18 @@ sciName<-unique(sara$Scientific_Name)
 
 tax_class<-c("Lampreys", "ray-finned fishes", "bivalves")
 
+if(!file.exists("data/SAR_occurances.gpkg")){
 spp<-bcdc_query_geodata("species-and-ecosystems-at-risk-publicly-available-occurrences-cdc") %>% 
   filter(TAX_CLASS %in% tax_class) %>% 
   collect()
+  sf::write_sf(spp,'data/SAR_occurances.gpkg')
+}else{
+  spp<-read_sf("data/SAR_occurances.gpkg")
+}
+
 
 counting<- spp %>% 
-  sf::st_drop_geometry() |> 
+  sf::st_drop_geometry() %>%  
   count(spp$ENG_NAME)
 ```
 
