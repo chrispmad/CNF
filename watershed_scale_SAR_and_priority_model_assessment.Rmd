@@ -66,9 +66,13 @@ spp<-bcdc_query_geodata("species-and-ecosystems-at-risk-publicly-available-occur
 }
 
 
+
+
 counting<- spp %>% 
   sf::st_drop_geometry() %>%  
   count(spp$ENG_NAME)
+
+#knitr::kable
 ```
 
 ```{r}
@@ -116,6 +120,23 @@ spp_by_ws = spp_by_ws %>%
 ws = ws %>% 
   dplyr::left_join(spp_by_ws)
 
+#plot(st_geometry(use_Spp_Overlap))
+
+#use_Spp_Overlap_NA<-use_Spp_Overlap[!is.na(use_Spp_Overlap$number_distinct_SAR),]
+#plot(st_geometry(use_Spp_Overlap_NA))
+
+#streams - get some SAR and crosschecck with Use
+ws_Sar<-ws[!is.na(ws$number_distinct_SAR),]
+ws_Sar<-ws_Sar[ws_Sar$WATERSHED_GROUP_NAME %in% ws_Use$WATERSHED_GROUP_NAME,]
+
+#get overlap for rivers with sar 
+zqpm_Overlap<-zqpmUseFilt[zqpmUseFilt$WATERSH %in% 
+                            ws_Sar$WATERSHED_GROUP_ID,]
+#used watersheds and sar
+ws_Use_Overlap<-ws_Use[ws_Use$WATERSHED_GROUP_ID %in% 
+                         ws_Sar$WATERSHED_GROUP_ID,]
+
+
 
 
 bc<-bc_bound()
@@ -128,7 +149,8 @@ ggplot()+
   geom_sf(data = ws, fill = "lightgrey")+ # simplify geom?
   geom_sf(data=ws_Use, fill = "purple", color = "black", alpha = 0.3)+
   geom_sf(data=zqpmUseFilt, fill = "red", color="dark red")+
-  labs(title = "High use waterbodies by watershed")+
+  labs(title = "High use waterbodies by watershed",
+       subtitle = paste0("Total number is ",nrow(ws_Use)))+
   ggthemes::theme_map()+
     theme(plot.title = element_text(size = rel(3), face = "bold"),
         plot.subtitle = element_text(size = rel(2)),
@@ -175,5 +197,26 @@ ggplot()+
         legend.text = element_text(size = rel(1.2))
         )
   
+```
+
+### Complete by overlap
+```{r}
+ggplot()+
+  geom_sf(data = bc, fill = "lightgrey", color = "darkgrey", alpha = 0.5)+ 
+  geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
+  scale_fill_manual(values =  sp_colors, na.value = "grey")+
+  geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
+  geom_sf(data= ws_Use_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) + 
+  labs(title = "Number of Distict SAR Species and High use sub-watersheds",
+       subtitle = "High use sub-watershed outlined in purple. High use waterbodies in red",
+       fill = "No. species at risk") +
+  annotation_scale(location = "br", width_hint = 0.5) +
+  ggthemes::theme_map()+
+  theme(plot.title = element_text(size = rel(2), face = "bold"),
+        plot.subtitle = element_text(size = rel(1.8)),
+        legend.title = element_text(size = rel(1.3)),
+        legend.text = element_text(size = rel(1.1))
+        )
+
 ```
 

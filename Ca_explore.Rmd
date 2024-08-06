@@ -1,0 +1,47 @@
+---
+title: "Calcium exploration"
+author: "John Phelan and Chris Madsen"
+date: "8/2/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 10, fig.height = 8)
+```
+
+## R Markdown
+```{r}
+library(raster)
+library(sf)
+library(bcmaps)
+library(ggplot2)
+```
+
+
+
+
+```{r reading_in_data}
+
+interp_Ca<-read.csv("data/interpolation_data_calcium_85747_shareable.csv")
+
+interp_Ca<- interp_Ca %>% 
+            filter(PROV_TERR_STATE == "BC")
+
+sp_Ca<-raster("data/calcium-KR-97648-median-10km-ZN.tif")
+sp_Ca
+
+bc<-bc_bound()
+
+bound_sp<-st_filter(bc, sp_Ca)
+
+```
+
+
+```{r Plotting}
+
+ggplot()+
+  #geom_sf(data = bc, fill = "grey", color = "dark grey")+
+  geom_raster(data = sp_Ca, aes (x = x, y = y))
+
+```
