@@ -16,6 +16,8 @@ library(raster)
 library(sf)
 library(bcmaps)
 library(ggplot2)
+library(terra) # plotting raster
+library(rasterVis)
 ```
 
 
@@ -23,25 +25,51 @@ library(ggplot2)
 
 ```{r reading_in_data}
 
-interp_Ca<-read.csv("data/interpolation_data_calcium_85747_shareable.csv")
-
-interp_Ca<- interp_Ca %>% 
-            filter(PROV_TERR_STATE == "BC")
-
-sp_Ca<-raster("data/calcium-KR-97648-median-10km-ZN.tif")
-sp_Ca
-
 bc<-bc_bound()
+projProj<-crs(bc)
 
-bound_sp<-st_filter(bc, sp_Ca)
+# interp_Ca<-read.csv("data/interpolation_data_calcium_85747_shareable.csv")
+# 
+# interp_Ca<- interp_Ca %>% 
+#             filter(PROV_TERR_STATE == "BC")
+
+spCa<-raster("data/calcium-KR-97648-median-10km-ZN.tif")
+spCaProj<-projectRaster(spCa, crs = projProj)
+
+CAHist<-hist(spCa, breaks = 10, col = "lightgreen", xlab= "Ca")
+custBreak<-CAHist$breaks
+histCounts<-CAHist$counts
+
+
+#getting the area of interest
+p1<-terra::crop(spCaProj, bc)
+p2<-mask(p1, bc)
+
+#for plotting
+spCaDf<- p2 %>% 
+  rasterToPoints() %>% 
+  as.data.frame()
+names(spCaDf)<-c("x", "y", "Ca")
 
 ```
 
 
 ```{r Plotting}
 
+plot(spCa, breaks = custBreak, col = terrain.colors(length(custBreak)),
+     main = "Calcium plot: North America")
+
 ggplot()+
-  #geom_sf(data = bc, fill = "grey", color = "dark grey")+
-  geom_raster(data = sp_Ca, aes (x = x, y = y))
+  geom_raster(data=spCaDf, aes(x =x, y = y, fill = Ca))+
+  scale_fill_gradientn(colors = brewer.pal(7, "Blues"))+
+  ggthemes::theme_map()+
+    theme(plot.title = element_text(size = rel(3), face = "bold"),
+        plot.subtitle = element_text(size = rel(2)),
+        legend.title = element_text(size = rel(1.8)),
+        legend.text = element_text(size = rel(1.2))
+    )
+  
+levelplot(p2, main = "Ca distribution in BC")
+
 
 ```

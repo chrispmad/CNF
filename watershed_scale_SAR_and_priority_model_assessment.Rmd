@@ -121,7 +121,7 @@ ws = st_simplify(ws)
 # for each high-priority waterbody; run the overlap with the subwatersheds
 # using these networks rather than the waterbody geometry itself.
 
-if(!file.exists("data/downstream_geoms.gpkg")){
+if(!file.exists("./data/downstream_geoms.Rds")){
 ######### remove the -1 to include Columbia River and delete the file downstream_geoms
   #############################################################################################
   #############################################################################################
