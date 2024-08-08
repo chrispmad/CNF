@@ -86,17 +86,13 @@ ggplot()+
   scale_fill_gradientn(colors = brewer.pal(7, "BuPu"))+
   labs(title = "Calcium in British Columbia")+
   ggthemes::theme_map()+
-```
-
-
-```{r Plotting}
-theme(plot.title = element_text(size = rel(3), face = "bold"),
+  theme(plot.title = element_text(size = rel(3), face = "bold"),
         plot.subtitle = element_text(size = rel(2)),
         legend.title = element_text(size = rel(1.8)),
         legend.text = element_text(size = rel(1.2))
-    )
-
+        )
 ```
+
 
 ### pH
 ```{r}
