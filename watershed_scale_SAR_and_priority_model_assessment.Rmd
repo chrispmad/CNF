@@ -23,12 +23,7 @@ library(dismo) # getting the climate models and other cool things
 library(ggpattern) # hatching ggplot
 library(RColorBrewer) # colors
 library(ggspatial) # scale bar
-<<<<<<< HEAD
-library(ggmap)
-library(osmdata)
-=======
 library(patchwork) # For combining ggplot figures in cool ways
->>>>>>> 4a25e8ae4c18a59c0b997f12629459f05fbac88a
 ```
 
 # Priority of Waterbodies Established via the ZQ Mussel Prioritization Model.
@@ -71,33 +66,13 @@ if(!file.exists("data/SAR_occurances.gpkg")){
   spp<-read_sf("data/SAR_occurances.gpkg")
 }
 
-#spp2<-spp[str_detect(spp$ENG_NAME, sciName)]
-
-<<<<<<< HEAD
-spp %>% filter(SCI_NAME %in% sciName)
-
-spp %>% 
-  filter(str_detect(SCI_NAME, paste0("(",paste0(sciName,collapse = "|"),")")))
-
-
 #bcdc_search("Major Roads The Atlas of Canada Base Maps")
 roadNetwork<-bcdc_query_geodata("7-5m-major-roads-the-atlas-of-canada-base-maps-for-bc") %>% 
   collect()
   
 
 bc<-bc_bound()
-=======
-# spp %>% filter(SCI_NAME %in% sciName)
-# 
-# spp %>% 
-#   filter(str_detect(SCI_NAME, paste0("(",paste0(sciName,collapse = "|"),")")))
 
->>>>>>> 4a25e8ae4c18a59c0b997f12629459f05fbac88a
-# counting<- sara %>% 
-#   sf::st_drop_geometry() %>%  
-#   count(Common_Name_EN)
-
-#knitr::kable
 ```
 
 ```{r filter_destination_waterbodies_and_find_downstream_networks_for_each}
@@ -260,18 +235,8 @@ ws_high_priority_Overlap<-ws_high_priority[ws_high_priority$WATERSHED_GROUP_ID %
 # Use suppressMessages just in case the bcmaps package is feeling chatty.
 bc <- suppressMessages(bc_bound())
 
-<<<<<<< HEAD
-roadNetworkSection<- st_crop(roadNetwork, ws_Use_Overlap) 
-roadNetworkSection
-
-plot(roadNetworkSection$geometry)
-
-
-
-=======
 # Make a subset of the subwatershed layer: just those subwatersheds in the window of the high-priority waterbodies and their downstream networks.
 ws_background = sf::st_crop(ws, ws_high_priority)
->>>>>>> 4a25e8ae4c18a59c0b997f12629459f05fbac88a
 ```
 
 ### High-Priority Waterbodies from ZQM Model
@@ -403,23 +368,23 @@ ggplot()+
 
 ### Cropped and road Network
 ```{r Road_Network_Plot}
-ggplot()+
-  geom_sf(data = st_crop(bc, ws_Use_Overlap), fill = "lightgrey", color = "darkgrey", alpha = 0.7)+
-  geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
-  scale_fill_manual(values =  sp_colors, na.value = "grey")+
-  geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
-  geom_sf(data= ws_Use_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) + 
-  geom_sf(data = roadNetworkSection, color = "Black", linewidth = 1, alpha = 0.4)+
-  labs(title = "Number of Distict SAR Species and High use sub-watersheds",
-       subtitle = "High use sub-watershed outlined in purple \nHigh use waterbodies and downstream network in red \nRoad networks in black",
-       fill = "No. species at risk") +
-  annotation_scale(location = "br", width_hint = 0.5) +
-  ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.3)),
-        legend.text = element_text(size = rel(1.1))
-        )
+# ggplot()+
+#   geom_sf(data = st_crop(bc, ws_high_priority_Overlap), fill = "lightgrey", color = "darkgrey", alpha = 0.7)+
+#   geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
+#   scale_fill_manual(values =  sp_colors, na.value = "grey")+
+#   geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
+#   geom_sf(data= ws_high_priority_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) + 
+#   geom_sf(data = roadNetworkSection, color = "Black", linewidth = 1, alpha = 0.4)+
+#   labs(title = "Number of Distict SAR Species and High use sub-watersheds",
+#        subtitle = "High use sub-watershed outlined in purple \nHigh use waterbodies and downstream network in red \nRoad networks in black",
+#        fill = "No. species at risk") +
+#   annotation_scale(location = "br", width_hint = 0.5) +
+#   ggthemes::theme_map()+
+#   theme(plot.title = element_text(size = rel(2), face = "bold"),
+#         plot.subtitle = element_text(size = rel(1.8)),
+#         legend.title = element_text(size = rel(1.3)),
+#         legend.text = element_text(size = rel(1.1))
+#         )
 ```
 
 
