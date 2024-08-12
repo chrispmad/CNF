@@ -83,11 +83,94 @@ ws = st_simplify(ws)
 
 ```{r find_downstream_geometries_for_waterbodies}
 downstream_courses_b = source("scripts/find_downstream_pieces_of_waterbodies.R", local = T)$value
+
+# I see that some waterbodies actually are missing
+```
+
+```{r assign_network_ID_to_priority_wb}
+# Assign network ID to each priority wb.
+downstream_courses_b = downstream_courses_b |> 
+  dplyr::mutate(network_id = case_when(
+    source_priority_wb == 'Shuswap Lake' ~ 1,
+    source_priority_wb == 'Flathead River' ~ 2,
+    source_priority_wb == 'Moyie Lake' ~ 3,
+    source_priority_wb %in% c("Kalamalka Lake, Okanagan Lake",
+                              "Skaha Lake","Osoyoos Lake") ~ 4,
+    T ~ 5
+  ))
+```
+
+```{r}
+# Subtract the geometries of all the shorter downstream subsets of each downstream geometry if they are present in another waterbodies downstream, e.g. remove Columbia river for all others that code for Columbia River.
+
+downstream_sum_tbl = downstream_courses_b |> 
+  sf::st_drop_geometry() |> 
+  dplyr::select(network_id, source_priority_wb,FWA_WATERSHED_CODE) |> 
+  dplyr::distinct() |> 
+  dplyr::add_count(source_priority_wb) |> 
+  # mutate(FWA_WATERSHED_CODE = str_remove_all(FWA_WATERSHED_CODE, '-000000')) |> 
+  dplyr::group_by(network_id, source_priority_wb, n) |> 
+  # dplyr::summarise(list_of_fwa = paste0(FWA_WATERSHED_CODE, collapse = ',')) |> 
+  ungroup() |> 
+  arrange(network_id, n, str_count(FWA_WATERSHED_CODE))
+
+downstream_courses_trimmed = downstream_courses_b
+
+
+# This is the bit where we trim away the geometries of other waterbodies/their downstream bits
+for(i in 1:length(unique(downstream_sum_tbl$source_priority_wb))){
+  print(i)
+  this_wb_name = unique(downstream_sum_tbl$source_priority_wb)[i]
+  these_fwa_codes = downstream_sum_tbl[downstream_sum_tbl$source_priority_wb == this_wb_name,]$FWA_WATERSHED_CODE
+  this_network = unique(downstream_sum_tbl[downstream_sum_tbl$source_priority_wb == this_wb_name,]$network_id)
+  number_stream_links = unique(downstream_sum_tbl[downstream_sum_tbl$source_priority_wb == this_wb_name,]$n)
+  number_of_wbs_in_network = length(unique(downstream_sum_tbl[downstream_sum_tbl$network_id == this_network,]$source_priority_wb))
+  
+  if(number_of_wbs_in_network == 1) next # Just one lake in this network, so nothing to trim away.
+  if(number_stream_links == 1) next # Just one stream link - this is a major draining river, nothing to trim away.
+  
+  # This is just the members of the network with the same or more stream junctions.
+  fwa_codes_of_other_network_members = downstream_sum_tbl |> 
+    dplyr::filter(source_priority_wb != this_wb_name) |> 
+    dplyr::filter(network_id == this_network) |> 
+    dplyr::filter(n >= number_stream_links) |>
+    dplyr::select(FWA_WATERSHED_CODE) |> 
+    dplyr::distinct() |> 
+    dplyr::pull(FWA_WATERSHED_CODE)
+  
+  # Filter these FWA codes out from this wb's downstream list of FWA codes.
+  new_list_of_fwa_codes = these_fwa_codes[!these_fwa_codes %in% unique(fwa_codes_of_other_network_members)]
+  
+  # Did we lose all FWA codes? If so, restore them! This means we have two waterbodies that are virtually
+  # touching and we'll not trim their downstreams.
+  if(length(new_list_of_fwa_codes) == 0) new_list_of_fwa_codes = these_fwa_codes
+  
+  list_of_dropped_fwa_codes = these_fwa_codes[!these_fwa_codes %in% new_list_of_fwa_codes]
+  
+  # Add those zeros back on...
+  if(length(list_of_dropped_fwa_codes) > 0){
+    downstream_courses_trimmed = downstream_courses_trimmed |> 
+      dplyr::filter(!(source_priority_wb == this_wb_name & FWA_WATERSHED_CODE %in% list_of_dropped_fwa_codes))
+  }
+}
+
+ds_by_wb_trimmed = downstream_courses_trimmed |> 
+  dplyr::group_by(source_priority_wb) |> 
+  dplyr::summarise()
+
+ggplot() + geom_sf(data = ds_by_wb_trimmed,
+                   aes(col = as.character(source_priority_wb))) #+ 
+  # geom_sf(data = zqpmUseFilt |> 
+  #           rename(source_priority_wb = GNIS_NA), col = 'red', fill = 'red') + 
+  # geom_sf_label(data = zqpmUseFilt |> 
+  #                 rename(source_priority_wb = GNIS_NA),
+  #               aes(label = source_priority_wb))
 ```
 
 ```{r visualize_waterbodies_and_their_downstreams}
 ggplot() + 
-  geom_sf(data = downstream_courses_b, aes(col = source_priority_wb)) + 
+  geom_sf(data = downstream_courses_b, 
+          aes(col = source_priority_wb)) + 
   geom_sf(data = zqpmUseFilt, col = 'red') +
   ggrepel::geom_label_repel(data = zqpmUseFilt, 
                             aes(label = GNIS_NA, 
@@ -98,12 +181,20 @@ ggplot() +
 ```
 
 ```{r merge_downstream_courses_by_source_waterbody_name}
-ds_by_wb = downstream_courses_b |> 
-  dplyr::group_by(source_priority_wb, upstream_waterbodies) |> 
-  dplyr::summarise() |> 
-  dplyr::ungroup()
-
-ggplot() + geom_sf(data = ds_by_wb)
+# ds_by_wb = downstream_courses_b |> 
+#   dplyr::group_by(source_priority_wb, 
+#                   upstream_waterbodies,
+#                   network_id) |> 
+#   dplyr::summarise() |> 
+#   dplyr::ungroup()
+# 
+# ggplot() + geom_sf(data = ds_by_wb, aes(col = as.character(network_id))) + 
+#   geom_sf(data = zqpmUseFilt |> 
+#             rename(source_priority_wb = GNIS_NA), col = 'red', fill = 'red') + 
+#   geom_sf_label(data = zqpmUseFilt |> 
+#                   rename(source_priority_wb = GNIS_NA),
+#                 aes(label = source_priority_wb))
+  # facet_wrap(~ source_priority_wb)
 # Looks good I think!
 ```
 
@@ -113,6 +204,13 @@ ws_high_priority = ws %>%
   sf::st_filter(ds_by_wb)
 # Might not need this anymore?
 ```
+
+```{r}
+# Add row identifier to each SARA record.
+# sara = sara |> 
+#   mutate(row_id = row_number())
+```
+
 
 ```{r count_SARA_by_waterbodies_and_downstream_networks}
 # By Waterbodies
@@ -132,11 +230,10 @@ sara_by_wb = sara_by_wb %>%
 # By Downstream network
 sara_by_ds = sara %>%
   st_transform(3005) %>%
-  st_join(ds_by_wb) %>%
+  st_join(ds_by_wb_trimmed) %>%
   sf::st_drop_geometry() %>%
-  # dplyr::group_by(ENG_NAME) %>%
-  # dplyr::summarise(WATERSHED_GROUP_NAME = paste0(WATERSHED_GROUP_NAME, collapse = ', '))
-  dplyr::select(Common_Name_EN,source_priority_wb)
+  dplyr::select(Common_Name_EN,source_priority_wb)#|> 
+  # dplyr::distinct()
 
 sara_by_ds = sara_by_ds %>%
   dplyr::distinct() %>%
@@ -152,24 +249,68 @@ sara_summary = full_join(
 # river was originally selected by IMDP records, it should be the whole thing,
 # I think.
 sara_summary[1,2] <- sara_summary[1,3]
+sara_summary[1,3] <- NA
 
-# And add our summaries back to our sf objects to enable nice plots.
+sara_summary = sara_summary |> 
+  mutate(number_distinct_SAR_in_waterbody = replace_na(number_distinct_SAR_in_waterbody,0)) |> 
+  mutate(number_distinct_SAR_downstream = number_distinct_SAR_downstream - number_distinct_SAR_in_waterbody)
+
+# Join back onto zqpm waterbodies and ds_by_wb_trimmed
+
 zqpmUseFilt = zqpmUseFilt |> 
-  dplyr::left_join(
-    sara_summary |> 
-      dplyr::select(GNIS_NA = waterbody_name,
-                    number_distinct_SAR = number_distinct_SAR_in_waterbody)
-  )
+  dplyr::left_join(sara_summary |> 
+                     dplyr::select(GNIS_NA = waterbody_name,
+                            number_distinct_SAR_in_waterbody))
 
-ds_by_wb = ds_by_wb |> 
-  dplyr::left_join(
-    sara_summary |> 
-      dplyr::select(source_priority_wb = waterbody_name,
-                    number_distinct_SAR = number_distinct_SAR_downstream)
-  )
+ds_by_wb_trimmed = ds_by_wb_trimmed |> 
+  dplyr::left_join(sara_summary |> 
+                     dplyr::select(source_priority_wb = waterbody_name,
+                                   number_distinct_SAR_downstream))
+
+# # Alternate technique - overlap with split pieces of downstream networks,
+# # then only retain unique matches (so that each SARA occurrence overlap can be 
+# # attributed to a particular waterbody's downstream part.)
+# 
+# 
+# all_overlaps = sara_with_id %>%
+#   st_transform(3005) %>%
+#   st_join(downstream_geometries_b) %>%
+#   sf::st_drop_geometry() %>%
+#   dplyr::select(row_id,Common_Name_EN,source_priority_wb)
+# 
+# # Take all overlaps and, for each unique SARA data row, find all the waterbody
+# # networks it can be found overlapping with. 
+# all_overlaps |> 
+#   sf::st_drop_geometry() |> 
+#   dplyr::distinct() |> 
+#   dplyr::count(Common_Name_EN,source_priority_wb) |> 
+#   dplyr::filter(!is.na(source_priority_wb))
+#   summarise(source_priority_wb = paste0(source_priority_wb, collapse = ', '))
+# 
+# # And add our summaries back to our sf objects to enable nice plots.
+# zqpmUseFilt = zqpmUseFilt |> 
+#   dplyr::left_join(
+#     sara_summary |> 
+#       dplyr::select(GNIS_NA = waterbody_name,
+#                     number_distinct_SAR = number_distinct_SAR_in_waterbody)
+#   )
+# 
+# ds_by_wb = ds_by_wb |> 
+#   dplyr::left_join(
+#     sara_summary |> 
+#       dplyr::select(source_priority_wb = waterbody_name,
+#                     number_distinct_SAR = number_distinct_SAR_downstream)
+#   )
 
 # Use suppressMessages just in case the bcmaps package is feeling chatty.
 bc <- suppressMessages(bc_bound())
+```
+
+### Data as Table
+```{r}
+DT::datatable(
+  sara_summary
+)
 ```
 
 ### High-Priority Waterbodies from ZQM Model
@@ -177,7 +318,7 @@ bc <- suppressMessages(bc_bound())
 # Combine the waterbodies flagged as high risk by the ZQ Mussel Prioritization Model with the downstream sections we found above; this allows us to plot a single sf object to the plot below and utilize a legend to easily explain what is what.
 
 priority_wb_and_ds = dplyr::bind_rows(
-  ds_by_wb |> 
+  ds_by_wb_trimmed |> 
     # dplyr::rename(geom = geom) |> 
     dplyr::mutate(type = "Downstream\nNetwork"),
   zqpmUseFilt |> 
@@ -188,7 +329,7 @@ priority_wb_and_ds = dplyr::bind_rows(
 # make map insert of BC with region highlighted.
 map_inset = ggplot() + 
   geom_sf(data = bc) + 
-  geom_sf(data = dplyr::summarise(ds_by_wb), col = 'red') +
+  geom_sf(data = dplyr::summarise(ds_by_wb_trimmed), col = 'red') +
   ggthemes::theme_map() + 
   theme(plot.background = element_rect(color = 'black'))
 
@@ -224,8 +365,7 @@ main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, b
 
 ### Number of Distinct SAR sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
-# sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-
+sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
 
 ggplot() + 
   # geom_sf(data = ds_by_wb, aes(col = number_distinct_SAR)) +
