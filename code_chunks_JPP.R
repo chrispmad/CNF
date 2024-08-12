@@ -1,5 +1,5 @@
 #tmax<-getData('CMIP6', var='tmax', res=10, rcp=85, model='AC', year=70)
-bioclim<-worldclim_global(var="bio", res=10, path = "./data") # gets all variables
+bioclim<-worldclim_global(var="bio", res=10, path = "./data/current") # gets all variables
 plot(bioclim)# have a look
 names(bioclim)# whats the name?
 

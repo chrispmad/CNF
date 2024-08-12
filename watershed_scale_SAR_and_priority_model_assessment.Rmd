@@ -32,7 +32,7 @@ library(patchwork) # For combining ggplot figures in cool ways
 
 ```{r reading_in_data}
 # Zebra Quagga Prioritization Model
-zqpm <-read_sf("./data/Waterbodies_with_binned_and_original_values.gpkg")
+zqpm <-read_sf("data/Waterbodies_with_binned_and_original_values.gpkg")
 
 # Watersheds of some scale
 if(!file.exists('data/watershed_groups.gpkg')){
@@ -290,7 +290,7 @@ main_map = ggplot() +
 main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
 ```
 
-### Number of Distinct SAR sp.
+### Number of Distinct SARA sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
 ggplot() + 
@@ -367,33 +367,33 @@ ggplot()+
 
 ```
 
-### Cropped and road Network
+
 ```{r Road_Network_Plot}
 
-roadNetwork<-bcdc_query_geodata("digital-road-atlas-dra-master-partially-attributed-roads") %>% 
-  filter(BBOX(local(st_bbox(ws_high_priority_Overlap, crs = st_crs(ws_high_priority_Overlap))))) %>% 
-  filter(!is.na(HIGHWAY_ROUTE_NUMBER)) %>% 
-  collect()
-
-ggplot()+
-  geom_sf(data = st_crop(bc, ws_high_priority_Overlap), fill = "lightgrey", color = "darkgrey", alpha = 0.7)+
-  geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
-  scale_fill_manual(values =  sp_colors, na.value = "grey")+
-  geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
-  geom_sf(data= ws_high_priority_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) +
-  geom_sf(data = roadNetwork, color = "Black", linewidth = 1, alpha = 0.4)+
-  labs(title = "Number of Distict SAR Species and High use sub-watersheds",
-       subtitle = "High use sub-watershed outlined in purple \nHigh use waterbodies and downstream network in red \nRoad networks in black",
-       fill = "No. species at risk") +
-  annotation_scale(location = "br", width_hint = 0.5) +
-  coord_sf(xlim = sf::st_bbox(ws_high_priority)[c(1,3)],
-           ylim = sf::st_bbox(ws_high_priority)[c(2,4)]) + 
-  ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.3)),
-        legend.text = element_text(size = rel(1.1))
-        )
+# roadNetwork<-bcdc_query_geodata("digital-road-atlas-dra-master-partially-attributed-roads") %>% 
+#   filter(BBOX(local(st_bbox(ws_high_priority_Overlap, crs = st_crs(ws_high_priority_Overlap))))) %>% 
+#   filter(!is.na(HIGHWAY_ROUTE_NUMBER)) %>% 
+#   collect()
+# 
+# ggplot()+
+#   geom_sf(data = st_crop(bc, ws_high_priority_Overlap), fill = "lightgrey", color = "darkgrey", alpha = 0.7)+
+#   geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
+#   scale_fill_manual(values =  sp_colors, na.value = "grey")+
+#   geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
+#   geom_sf(data= ws_high_priority_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) +
+#   geom_sf(data = roadNetwork, color = "Black", linewidth = 1, alpha = 0.4)+
+#   labs(title = "Number of Distict SAR Species and High use sub-watersheds",
+#        subtitle = "High use sub-watershed outlined in purple \nHigh use waterbodies and downstream network in red \nRoad networks in black",
+#        fill = "No. species at risk") +
+#   annotation_scale(location = "br", width_hint = 0.5) +
+#   coord_sf(xlim = sf::st_bbox(ws_high_priority)[c(1,3)],
+#            ylim = sf::st_bbox(ws_high_priority)[c(2,4)]) + 
+#   ggthemes::theme_map()+
+#   theme(plot.title = element_text(size = rel(2), face = "bold"),
+#         plot.subtitle = element_text(size = rel(1.8)),
+#         legend.title = element_text(size = rel(1.3)),
+#         legend.text = element_text(size = rel(1.1))
+#         )
 ```
 
 
