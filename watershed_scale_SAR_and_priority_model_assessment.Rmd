@@ -38,11 +38,9 @@ onedrive_path = paste0(path_to_user,"/OneDrive - Government of BC/data/CNF/")
 
 ```{r reading_in_data}
 # Zebra Quagga Prioritization Model
-<<<<<<< HEAD
-zqpm <-read_sf("data/Waterbodies_with_binned_and_original_values.gpkg")
-=======
+
+#zqpm <-read_sf("data/Waterbodies_with_binned_and_original_values.gpkg")
 zqpm <-read_sf(paste0(onedrive_path,"Waterbodies_with_binned_and_original_values.gpkg"))
->>>>>>> 3a4f38e94c570c15c770f2337657dd116d7d644f
 
 # Watersheds of some scale
 if(!file.exists(paste0(onedrive_path,'watershed_groups.gpkg'))){
@@ -67,9 +65,20 @@ sara = read_sf(paste0(onedrive_path,"DFO_SARA_occ_data_QGIS_simplified.gpkg"))
 # Include SARA critical habitat?
 
 
+# Coastrange Sculpin – Cultus (Cottus aleuticus)
+# Westslope Cutthroat Trout – Pacific (Oncorhynchus clarki lewisi)
+# Bull Trout - South Coast British Columbia (Salvelinus confluentus)
+# Rocky Mountain Ridged Mussel (Gonidea angulata)
+# Sockeye Salmon - Cultus-L (Oncorhynchus nerka)
 
-sara |> 
-  filter(Scientific_Name %in% c("Oncorhynchus nerka"))
+#check sci names - case insensitive with "tolower"
+sara_sci_filt<-sara %>% 
+              filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarki lewisi", 
+                                            "Salvelinus confluentus",
+                                "Gonidea angulata", "Oncorhynchus nerka")))
+
+
+
 # sara = sara |> 
 #   filter(
 #     (Common_Name_EN == "Cultus Pygmy Sculpin" & Population_EN == "Cultus") | (Common_Name_EN == 'Westslope Cutthroat Trout' & Population_EN == 'Pacific') | (Common_Name_EN == 'Bull Trout' & Population_EN == 'Columbia') | Common_Name_EN == 'Rocky Mountain Ridged Mussel')
@@ -88,7 +97,7 @@ sara |>
 # }
 ```
 
-SARA-listed species included in this assessment: `r paste0(unique(sara$Common_Name_EN), collapse = ', ')`.
+SARA-listed species included in this assessment: `r paste0(unique(sara_sci_filt$Common_Name_EN), collapse = ', ')`.
 
 ```{r filter_destination_waterbodies_and_find_downstream_networks_for_each}
 #sub water shed scale ws 
@@ -330,16 +339,18 @@ main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, b
 
 ### Number of Distinct SARA sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
-sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
+#sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
+col_ramp<-colorRampPalette(c("Green", "Purple"))
+col5<-col_ramp(4)
 
 ggplot() + 
   geom_sf(data = bc, alpha = 0.25) +
   geom_sf(data = ds_geom_sum, col = 'grey') +
   geom_sf(data = zqpmUseFilt, 
           aes(fill = as.factor(number_distinct_SAR),
-              colour = as.factor(number_distinct_SAR))) + 
-  # scale_fill_manual(values =  sp_colors, na.value = "grey")+
-  # scale_colour_manual(values =  sp_colors, na.value = "grey")+
+              colour = as.factor(number_distinct_SAR), size = 1.4)) + 
+  scale_fill_manual(values =  col5, na.value = "grey")+
+  scale_colour_manual(values =  col5, na.value = "grey")+
   labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
        fill = "No. species at risk",
        colour =  "No. species at risk") +
@@ -451,10 +462,7 @@ leaflet(height = 600) |>
 
 ```
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 3a4f38e94c570c15c770f2337657dd116d7d644f
 ```{r Road_Network_Plot}
 ### Cropped and road Network
 
@@ -482,8 +490,7 @@ leaflet(height = 600) |>
 #         legend.title = element_text(size = rel(1.3)),
 #         legend.text = element_text(size = rel(1.1))
 #         )
-<<<<<<< HEAD
-=======
+
 ```
 
 ## Data as Table
@@ -500,38 +507,37 @@ DT::datatable(
 ## SARA species overlap by downstream networks
 ```{r}
 
-all_sara_matched = c("Westslope Cutthroat Trout", "Green Sturgeon", "Mountain Sucker","White Sturgeon","Shorthead Sculpin","Columbia Sculpin","Rocky Mountain Sculpin")
-
-fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
-  dplyr::summarise()
-
-columbia = sf::read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
-  dplyr::summarise()
-
-big_boys = dplyr::bind_rows(
-  fras, columbia
-)
-
-ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
- 
-ggplot() + 
-  geom_sf(data = big_boys) +
-  geom_sf(data = ds_by_dr_riv) +
-  geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN)) + 
-  coord_sf(xlim = ds_limits[c(1,3)],
-           ylim = ds_limits[c(2,4)]) + 
-  labs(fill = 'SARA-listed species',
-       col = 'SARA-listed species')
-
-sara_by_dr_river |> 
-  mutate(draining_river = case_when(
-    draining_river == '100' ~ "Fraser River",
-    draining_river == '300' ~ "Columbia River",
-    T ~ draining_river
-  )) |> 
-  sf::st_drop_geometry() |> 
-  knitr::kable()
->>>>>>> 3a4f38e94c570c15c770f2337657dd116d7d644f
+# all_sara_matched = c("Westslope Cutthroat Trout", "Green Sturgeon", "Mountain Sucker","White Sturgeon","Shorthead Sculpin","Columbia Sculpin","Rocky Mountain Sculpin") 
+# 
+# fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>  
+# dplyr::summarise() 
+# 
+# columbia = sf::read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |>  
+# dplyr::summarise()
+# 
+# big_boys = dplyr::bind_rows( -
+# fras, columbia)
+# 
+# 
+#  ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326)) 
+# 
+#  ggplot() +  
+#    geom_sf(data = big_boys) + 
+#    geom_sf(data = ds_by_dr_riv) + 
+#    geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN)) +  
+#    coord_sf(xlim = ds_limits[c(1,3)], 
+#             ylim = ds_limits[c(2,4)]) +  
+#    labs(fill = 'SARA-listed species', 
+#         col = 'SARA-listed species') 
+# 
+#  sara_by_dr_river |>  
+#    mutate(draining_river = case_when( 
+#      draining_river == '100' ~ "Fraser River", 
+#      draining_river == '300' ~ "Columbia River", 
+#      T ~ draining_river 
+#    )) |>  
+#    sf::st_drop_geometry() |>  
+#    knitr::kable() 
 ```
 
 
