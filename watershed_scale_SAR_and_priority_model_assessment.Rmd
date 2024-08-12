@@ -72,13 +72,22 @@ sara = read_sf(paste0(onedrive_path,"DFO_SARA_occ_data_QGIS_simplified.gpkg"))
 # Sockeye Salmon - Cultus-L (Oncorhynchus nerka)
 
 #check sci names - case insensitive with "tolower"
-sara_sci_filt<-sara %>% 
+sara_sciFilt<-sara %>% 
               filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarki lewisi", 
                                             "Salvelinus confluentus",
                                 "Gonidea angulata", "Oncorhynchus nerka")))
 
+st_crs(sara_sciFilt)
+### Ctitical habitat
+critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
+critHab_sciFilt<- critHab %>% 
+                  filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarki lewisi", 
+                                            "Salvelinus confluentus",
+                                "Gonidea angulata", "Oncorhynchus nerka")))
+st_crs(critHab)
+critHabTrans<-st_transform(critHab_sciFilt, st_crs(sara_sciFilt))
 
-
+mergedPopn<-bind_rows(sara_sciFilt, critHabTrans)
 # sara = sara |> 
 #   filter(
 #     (Common_Name_EN == "Cultus Pygmy Sculpin" & Population_EN == "Cultus") | (Common_Name_EN == 'Westslope Cutthroat Trout' & Population_EN == 'Pacific') | (Common_Name_EN == 'Bull Trout' & Population_EN == 'Columbia') | Common_Name_EN == 'Rocky Mountain Ridged Mussel')
@@ -222,11 +231,11 @@ ds_geom_sum = dplyr::summarise(ds_geom_bound)
 #   theme(legend.position = 'none')
 
 # Summarise the SARA-listed, Whirling-Disease-sensitive fish species by subwatershed.
-sara_by_wb = sara %>%
+sara_by_wb = sara_sciFilt %>%
   st_transform(3005) %>% 
   st_join(zqpmUseFilt %>% dplyr::select(GNIS_NA)) %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::select(Common_Name_EN,GNIS_NA)
+  dplyr::select(Scientific_Name,Common_Name_EN,GNIS_NA)
 
 sara_by_wb = sara_by_wb %>%
   dplyr::filter(!is.na(GNIS_NA)) |> 
