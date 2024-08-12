@@ -58,6 +58,18 @@ regs = bcmaps::nr_regions()
 # DFO SARA spatial data.
 sara = read_sf(paste0(onedrive_path,"DFO_SARA_occ_data_QGIS_simplified.gpkg"))
 
+# Filter SARA occurrence data by scientific name.
+
+# Include SARA critical habitat?
+
+
+
+sara |> 
+  filter(Scientific_Name %in% c("Oncorhynchus nerka"))
+# sara = sara |> 
+#   filter(
+#     (Common_Name_EN == "Cultus Pygmy Sculpin" & Population_EN == "Cultus") | (Common_Name_EN == 'Westslope Cutthroat Trout' & Population_EN == 'Pacific') | (Common_Name_EN == 'Bull Trout' & Population_EN == 'Columbia') | Common_Name_EN == 'Rocky Mountain Ridged Mussel')
+
 # sciName<-unique(sara$Scientific_Name)
 # 
 # tax_class<-c("Lampreys", "ray-finned fishes", "bivalves")
@@ -354,7 +366,7 @@ my_tbls = leafpop::popupTable(
     dplyr::select(-WATERSH,-WATERBO)
   )
 
-leaflet(height = 400) |> 
+leaflet(height = 600) |> 
   addTiles() |> 
   addProviderTiles(providers$Esri.OceanBasemap) |> 
   addProviderTiles(providers$CartoDB) |> 
@@ -490,12 +502,23 @@ big_boys = dplyr::bind_rows(
   fras, columbia
 )
 
+ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
+ 
 ggplot() + 
   geom_sf(data = big_boys) +
   geom_sf(data = ds_by_dr_riv) +
-  geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN))
+  geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN)) + 
+  coord_sf(xlim = ds_limits[c(1,3)],
+           ylim = ds_limits[c(2,4)]) + 
+  labs(fill = 'SARA-listed species',
+       col = 'SARA-listed species')
 
 sara_by_dr_river |> 
+  mutate(draining_river = case_when(
+    draining_river == '100' ~ "Fraser River",
+    draining_river == '300' ~ "Columbia River",
+    T ~ draining_river
+  )) |> 
   sf::st_drop_geometry() |> 
   knitr::kable()
 ```
