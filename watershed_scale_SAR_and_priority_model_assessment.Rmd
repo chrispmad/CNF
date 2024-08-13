@@ -395,17 +395,17 @@ if(!interactive()) {
 ### Number of Distinct SARA sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-col_ramp<-colorRampPalette(c("Green", "Purple"))
-col5<-col_ramp(4)
+cols<-c("#007bff", "#ff7f00", "#228b22")
+#cols<-col_ramp(4)
 
 g = ggplot() + 
   geom_sf(data = bc, alpha = 0.25) +
   geom_sf(data = ds_geom_sum, col = 'grey') +
   geom_sf(data = zqpmUseFilt, 
           aes(fill = SARA_species,
-              colour = SARA_species)) + 
-  # scale_fill_manual(values =  col5, na.value = "grey")+
-  # scale_colour_manual(values =  col5, na.value = "grey")+
+              colour = SARA_species), lwd = 1.8) + 
+  scale_fill_manual(values =  cols, na.value = "grey")+
+  scale_colour_manual(values =  cols, na.value = "grey")+
   labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
        fill = "Species Common Name",
        colour =  "Species Common Name") +
@@ -420,61 +420,64 @@ g = ggplot() +
            ylim = sf::st_bbox(ds_geom_sum)[c(2,4)]) + 
   ggspatial::annotation_scale()
 
+
 if(!interactive()) {
   print(g)
 }
 ```
 
-### Interactive Map
+
 ```{r}
-zqpm_wgs = sf::st_transform(zqpmUseFilt, 4326)
-
-my_pal = leaflet::colorFactor(
-  palette = 'PRGn',
-  domain = as.factor(unique(zqpm_wgs$number_distinct_SAR))
-)
-
-my_pal_l = leaflet::colorFactor(
-  palette = 'PRGn',
-  domain =  as.factor(unique(zqpm_wgs$number_distinct_SAR)),
-  reverse = T
-)
-
-# Set colours manually
-zqpm_wgs = zqpm_wgs |> 
-  mutate(leaf_col = case_when(
-    number_distinct_SAR == 0 ~ 0,
-    number_distinct_SAR > 0 ~ 0.75
-  ))
-
-my_tbls = leafpop::popupTable(
-  zqpmUseFilt |> 
-    sf::st_drop_geometry() |> 
-    dplyr::select(-WATERSH,-WATERBO)
-  )
-
-leaflet(height = 600) |> 
-  addTiles() |> 
-  addProviderTiles(providers$Esri.OceanBasemap) |> 
-  addProviderTiles(providers$CartoDB) |> 
-  addPolylines(
-    data = zqpm_wgs,
-    label = ~paste0(GNIS_NA,": ",number_distinct_SAR),
-    popup = lapply(my_tbls, htmltools::HTML),
-    color = ~my_pal(number_distinct_SAR),
-    opacity = ~leaf_col
-  ) |> 
-  addLegend(
-    title = "Number of<br>Distinct SARA",
-    pal = my_pal_l,
-    values = unique(zqpm_wgs$number_distinct_SAR),
-    labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE))
-  ) |> 
-  addScaleBar(position = 'bottomright')
+### Interactive Map
+# zqpm_wgs = sf::st_transform(zqpmUseFilt, 4326)
+# 
+# my_pal = leaflet::colorFactor(
+#   palette = 'PRGn',
+#   domain = as.factor(unique(zqpm_wgs$number_distinct_SAR))
+# )
+# 
+# my_pal_l = leaflet::colorFactor(
+#   palette = 'PRGn',
+#   domain =  as.factor(unique(zqpm_wgs$number_distinct_SAR)),
+#   reverse = T
+# )
+# 
+# # Set colours manually
+# zqpm_wgs = zqpm_wgs |> 
+#   mutate(leaf_col = case_when(
+#     number_distinct_SAR == 0 ~ 0,
+#     number_distinct_SAR > 0 ~ 0.75
+#   ))
+# 
+# my_tbls = leafpop::popupTable(
+#   zqpmUseFilt |> 
+#     sf::st_drop_geometry() |> 
+#     dplyr::select(-WATERSH,-WATERBO)
+#   )
+# 
+# leaflet(height = 600) |> 
+#   addTiles() |> 
+#   addProviderTiles(providers$Esri.OceanBasemap) |> 
+#   addProviderTiles(providers$CartoDB) |> 
+#   addPolylines(
+#     data = zqpm_wgs,
+#     label = ~paste0(GNIS_NA,": ",number_distinct_SAR),
+#     popup = lapply(my_tbls, htmltools::HTML),
+#     color = ~my_pal(number_distinct_SAR),
+#     opacity = ~leaf_col
+#   ) |> 
+#   addLegend(
+#     title = "Number of<br>Distinct SARA",
+#     pal = my_pal_l,
+#     values = unique(zqpm_wgs$number_distinct_SAR),
+#     labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE))
+#   ) |> 
+#   addScaleBar(position = 'bottomright')
 ```
 
-### Downstream Network Overlaps
+
 ```{r downstream_plot}
+### Downstream Network Overlaps
 # 
 # fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
 # dplyr::summarise()
@@ -516,7 +519,7 @@ leaflet(height = 600) |>
 # )
 ```
 
-## SARA species overlap by downstream networks
+### SARA species overlap by downstream networks
 ```{r}
 
 all_sara_matched = c("Westslope Cutthroat Trout", "Green Sturgeon", "Mountain Sucker","White Sturgeon","Shorthead Sculpin","Columbia Sculpin","Rocky Mountain Sculpin")
