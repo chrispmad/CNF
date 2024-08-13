@@ -277,7 +277,9 @@ sara_by_wb = sara_by_wb %>%
   dplyr::distinct() %>% 
   dplyr::add_count(GNIS_NA, name = 'number_distinct_SAR') |> 
   dplyr::group_by(GNIS_NA,number_distinct_SAR) |> 
-  dplyr::summarise(SARA_species = paste0(Common_Name_EN, collapse = ', '))
+  dplyr::summarise(SARA_species = paste0(Common_Name_EN, collapse = ', ')) |> 
+  dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0),
+                SARA_species = replace_na(SARA_species, 'None'))
 
 zqpmUseFilt = zqpmUseFilt %>% 
   dplyr::left_join(sara_by_wb)
@@ -384,20 +386,20 @@ main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, b
 ### Number of Distinct SARA sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-col_ramp<-colorRampPalette(c("Green", "Purple"))
+# col_ramp<-colorRampPalette(c("Green", "Purple"))
 col5<-col_ramp(4)
 
 ggplot() + 
   geom_sf(data = bc, alpha = 0.25) +
   geom_sf(data = ds_geom_sum, col = 'grey') +
   geom_sf(data = zqpmUseFilt, 
-          aes(fill = as.factor(number_distinct_SAR),
-              colour = as.factor(number_distinct_SAR))) + 
-  scale_fill_manual(values =  col5, na.value = "grey")+
-  scale_colour_manual(values =  col5, na.value = "grey")+
+          aes(fill = SARA_species,
+              colour = SARA_species)) + 
+  # scale_fill_manual(values =  col5, na.value = "grey")+
+  # scale_colour_manual(values =  col5, na.value = "grey")+
   labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
-       fill = "No. species at risk",
-       colour =  "No. species at risk") +
+       fill = "Species Common Name",
+       colour =  "Species Common Name") +
   # ggthemes::theme_map()+
   theme(plot.title = element_text(size = rel(2), face = "bold"),
         plot.subtitle = element_text(size = rel(1.8)),
