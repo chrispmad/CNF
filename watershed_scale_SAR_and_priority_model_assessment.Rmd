@@ -27,6 +27,7 @@ library(RColorBrewer) # colors
 library(ggspatial) # scale bar
 library(patchwork) # For combining ggplot figures in cool ways
 library(leaflet)
+library(gdalUtilities)
 
 path_to_user = str_extract(getwd(), ".*Users/[A-Z]+")
 onedrive_path = paste0(path_to_user,"/OneDrive - Government of BC/data/CNF/")
@@ -66,28 +67,44 @@ sara = read_sf(paste0(onedrive_path,"DFO_SARA_occ_data_QGIS_simplified.gpkg"))
 
 
 # Coastrange Sculpin – Cultus (Cottus aleuticus)
-# Westslope Cutthroat Trout – Pacific (Oncorhynchus clarki lewisi)
+# Westslope Cutthroat Trout – Pacific (Oncorhynchus clarki lewisi) - spelled wrong clarkii
 # Bull Trout - South Coast British Columbia (Salvelinus confluentus)
 # Rocky Mountain Ridged Mussel (Gonidea angulata)
 # Sockeye Salmon - Cultus-L (Oncorhynchus nerka)
 
 #check sci names - case insensitive with "tolower"
 sara_sciFilt<-sara %>% 
-              filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarki lewisi", 
+              filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarkii lewisi", 
                                             "Salvelinus confluentus",
                                 "Gonidea angulata", "Oncorhynchus nerka")))
 
-st_crs(sara_sciFilt)
+# unique(sara_sciFilt$Common_Name_EN)
+# unique(sara_sciFilt$Scientific_Name)
+
 ### Ctitical habitat
 critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
-critHab_sciFilt<- critHab %>% 
-                  filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarki lewisi", 
+
+
+ensure_multipolygons <- function(X) {
+  tmp1 <- tempfile(fileext = ".gpkg")
+  tmp2 <- tempfile(fileext = ".gpkg")
+  st_write(X, tmp1)
+  ogr2ogr(tmp1, tmp2, f = "GPKG", nlt = "MULTIPOLYGON")
+  Y <- st_read(tmp2)
+  st_sf(st_drop_geometry(X), geom = st_geometry(Y))
+}
+
+critHabFixed<-ensure_multipolygons(critHab)
+
+critHab_sciFilt<- critHabFixed %>% 
+                  filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarkii lewisi",
                                             "Salvelinus confluentus",
                                 "Gonidea angulata", "Oncorhynchus nerka")))
-st_crs(critHab)
-critHabTrans<-st_transform(critHab_sciFilt, st_crs(sara_sciFilt))
+#unique(critHab$Common_Name_EN)
 
+critHabTrans<-st_transform(critHab_sciFilt, st_crs(sara_sciFilt))
 mergedPopn<-bind_rows(sara_sciFilt, critHabTrans)
+
 # sara = sara |> 
 #   filter(
 #     (Common_Name_EN == "Cultus Pygmy Sculpin" & Population_EN == "Cultus") | (Common_Name_EN == 'Westslope Cutthroat Trout' & Population_EN == 'Pacific') | (Common_Name_EN == 'Bull Trout' & Population_EN == 'Columbia') | Common_Name_EN == 'Rocky Mountain Ridged Mussel')
@@ -231,8 +248,11 @@ ds_geom_sum = dplyr::summarise(ds_geom_bound)
 #   theme(legend.position = 'none')
 
 # Summarise the SARA-listed, Whirling-Disease-sensitive fish species by subwatershed.
-sara_by_wb = sara_sciFilt %>%
+
+
+sara_by_wb = mergedPopn %>%
   st_transform(3005) %>% 
+  st_simplify() %>% 
   st_join(zqpmUseFilt %>% dplyr::select(GNIS_NA)) %>% 
   sf::st_drop_geometry() %>% 
   dplyr::select(Scientific_Name,Common_Name_EN,GNIS_NA)
@@ -357,7 +377,7 @@ ggplot() +
   geom_sf(data = ds_geom_sum, col = 'grey') +
   geom_sf(data = zqpmUseFilt, 
           aes(fill = as.factor(number_distinct_SAR),
-              colour = as.factor(number_distinct_SAR), size = 1.4)) + 
+              colour = as.factor(number_distinct_SAR))) + 
   scale_fill_manual(values =  col5, na.value = "grey")+
   scale_colour_manual(values =  col5, na.value = "grey")+
   labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
