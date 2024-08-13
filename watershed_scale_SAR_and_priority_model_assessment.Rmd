@@ -58,72 +58,89 @@ if(!file.exists(paste0(onedrive_path,'watershed_groups.gpkg'))){
 # Regions (just in case)
 regs = bcmaps::nr_regions()
 
-# DFO SARA spatial data.
-sara = read_sf(paste0(onedrive_path,"DFO_SARA_occ_data_QGIS_simplified.gpkg"))
-
-# Filter SARA occurrence data by scientific name.
-
-# Include SARA critical habitat?
-
-
-# Coastrange Sculpin – Cultus (Cottus aleuticus)
-# Westslope Cutthroat Trout – Pacific (Oncorhynchus clarki lewisi) - spelled wrong clarkii
-# Bull Trout - South Coast British Columbia (Salvelinus confluentus)
-# Rocky Mountain Ridged Mussel (Gonidea angulata)
-# Sockeye Salmon - Cultus-L (Oncorhynchus nerka)
-
-#check sci names - case insensitive with "tolower"
-sara_sciFilt<-sara %>% 
-              filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarkii lewisi", 
-                                            "Salvelinus confluentus",
-                                "Gonidea angulata", "Oncorhynchus nerka")))
-
-# unique(sara_sciFilt$Common_Name_EN)
-# unique(sara_sciFilt$Scientific_Name)
-
-### Ctitical habitat
-critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
-
-
-ensure_multipolygons <- function(X) {
-  tmp1 <- tempfile(fileext = ".gpkg")
-  tmp2 <- tempfile(fileext = ".gpkg")
-  st_write(X, tmp1)
-  ogr2ogr(tmp1, tmp2, f = "GPKG", nlt = "MULTIPOLYGON")
-  Y <- st_read(tmp2)
-  st_sf(st_drop_geometry(X), geom = st_geometry(Y))
+if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpkg"))){
+  # DFO SARA spatial data.
+  sara = read_sf(paste0(onedrive_path,"dfo_occurrences_in_BC_all_species.gpkg"))
+  
+  # Filter SARA occurrence data by scientific name AND population, in one fell swoop.
+  sara = sara |> 
+    dplyr::filter(Scientific_Name == "Cottus aleuticus" & str_detect(Population_EN, 'Cultus') |
+                    Scientific_Name == "Oncorhynchus clarkii lewisi" & str_detect(Population_EN,'Pacific') | 
+                    Scientific_Name == "Salvelinus confluentus" & str_detect(Population_EN,'South Coast') | 
+                    Scientific_Name == "Gonidea angulata")
+  
+  # sara |> st_drop_geometry() |> count(Scientific_Name, Population_EN)
+  
+  sockeye = bcinvadeR::grab_aq_occ_data('sockeye salmon')
+  
+  # Filter Sockeye for just Cultus lake.
+  cultus = bcdc_query_geodata('freshwater-atlas-lakes') |> 
+    filter(GNIS_NAME_1 == 'Cultus Lake') |> 
+    collect() |> 
+    sf::st_transform(st_crs(sockeye))
+  
+  sockeye = sockeye |> 
+    sf::st_filter(cultus)
+  
+  # Merge sockeye with SARA
+  occdat = sara |> 
+    dplyr::bind_rows(
+      sockeye |> 
+        dplyr::mutate(Population_EN = 'Cultus',
+                      Common_Name_EN = 'Sockeye Salmon',
+                      Scientific_Name = 'Oncorhynchus nerka',
+                      Taxon = 'Fishes') |> 
+        dplyr::select(Population_EN, Common_Name_EN, Scientific_Name, Taxon) |> 
+        sf::st_transform(3857)
+    )
+  
+  # Include SARA critical habitat?
+  
+  ### Critical habitat
+  critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
+  
+  # Make sure column names are the same between critical habitat and SARA occ object.
+  ensure_multipolygons <- function(X) {
+    tmp1 <- tempfile(fileext = ".gpkg")
+    tmp2 <- tempfile(fileext = ".gpkg")
+    st_write(X, tmp1)
+    ogr2ogr(tmp1, tmp2, f = "GPKG", nlt = "MULTIPOLYGON")
+    Y <- st_read(tmp2)
+    st_sf(st_drop_geometry(X), geom = st_geometry(Y))
+  }
+  
+  critHabFixed<-ensure_multipolygons(critHab)
+  
+  critHab_sciFilt<-critHabFixed %>% 
+    dplyr::filter(Scientific_Name == "Cottus aleuticus" & str_detect(Population_EN, 'Cultus') |
+                    Scientific_Name == "Oncorhynchus clarkii lewisi" & str_detect(Population_EN,'Pacific') | 
+                    Scientific_Name == "Salvelinus confluentus" & str_detect(Population_EN,'South Coast') | 
+                    Scientific_Name == "Gonidea angulata")
+  #unique(critHab$Common_Name_EN)
+  
+  # critHabTrans<-st_transform(critHab_sciFilt, st_crs(occdat))
+  mergedPopn<-bind_rows(occdat, critHab_sciFilt)
+  
+  # Do st_difference with bc polygon.
+  mergedPopn = ensure_multipolygons(mergedPopn)
+  
+  mergedPopn = sf::st_make_valid(mergedPopn)
+  
+  mergedPopn_d = sf::st_difference(mergedPopn, bcmaps::bc_bound() |> dplyr::summarise() |> sf::st_transform(3857))
+  
+  ggplot() + geom_sf(data = mergedPopn)
+  
+  sf::write_sf(mergedPopn, paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpkg"))
+} else {
+  mergedPopn = read_sf(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpkg"))
 }
 
-critHabFixed<-ensure_multipolygons(critHab)
-
-critHab_sciFilt<- critHabFixed %>% 
-                  filter(tolower(Scientific_Name) %in% tolower(c("Cottus aleuticus", "Oncorhynchus clarkii lewisi",
-                                            "Salvelinus confluentus",
-                                "Gonidea angulata", "Oncorhynchus nerka")))
-#unique(critHab$Common_Name_EN)
-
-critHabTrans<-st_transform(critHab_sciFilt, st_crs(sara_sciFilt))
-mergedPopn<-bind_rows(sara_sciFilt, critHabTrans)
-
-# sara = sara |> 
-#   filter(
-#     (Common_Name_EN == "Cultus Pygmy Sculpin" & Population_EN == "Cultus") | (Common_Name_EN == 'Westslope Cutthroat Trout' & Population_EN == 'Pacific') | (Common_Name_EN == 'Bull Trout' & Population_EN == 'Columbia') | Common_Name_EN == 'Rocky Mountain Ridged Mussel')
-
-# sciName<-unique(sara$Scientific_Name)
-# 
-# tax_class<-c("Lampreys", "ray-finned fishes", "bivalves")
-
-# if(!file.exists(paste0(onedrive_path,"SAR_occurences.gpkg"))){
-#   spp<-bcdc_query_geodata("species-and-ecosystems-at-risk-publicly-available-occurrences-cdc") %>% 
-#     filter(TAX_CLASS %in% tax_class) %>% 
-#     collect()
-#   sf::write_sf(spp,paste0(onedrive_path,'SAR_occurences.gpkg'))
-# }else{
-#   spp<-read_sf(paste0(onedrive_path,"SAR_occurences.gpkg"))
-# }
+mergedPopn |> 
+  sf::st_drop_geometry() |> 
+  # dplyr::select(Common_Name_EN, Scientific_Name, Population_EN) |> 
+  dplyr::count(Common_Name_EN, Scientific_Name, Population_EN, name = 'Rows of data') |> 
+  knitr::kable()
 ```
-
-SARA-listed species included in this assessment: `r paste0(unique(sara_sci_filt$Common_Name_EN), collapse = ', ')`.
 
 ```{r filter_destination_waterbodies_and_find_downstream_networks_for_each}
 #sub water shed scale ws 
@@ -144,8 +161,6 @@ SARA-listed species included in this assessment: `r paste0(unique(sara_sci_filt$
 
 # zqpm %>%  mutate(Sum.of.days.fished_B = as.numeric(cut(Sum.of.days.fished, 3))) %>% 
 #   dplyr::select(sum.days.fished, sum.days.fished_B)
-
-
 
 zqpmUseFilt<-zqpm %>% arrange(desc(InvasionRisk)) %>% 
   dplyr::select(WATERSH, WATERBO, GNIS_NA, InvasionRisk) %>% 
@@ -296,7 +311,7 @@ ds_by_dr_riv = ds_geom_bound |>
   dplyr::group_by(draining_river) |> 
   dplyr::summarise()
 
-sara_by_dr_river_w_geom = sara %>%
+sara_by_dr_river_w_geom = mergedPopn %>%
   st_transform(3005) %>% 
   st_join(ds_by_dr_riv) %>% 
   dplyr::filter(!is.na(draining_river))
