@@ -40,7 +40,6 @@ onedrive_path = paste0(path_to_user,"/OneDrive - Government of BC/data/CNF/")
 ```{r reading_in_data}
 # Zebra Quagga Prioritization Model
 
-#zqpm <-read_sf("data/Waterbodies_with_binned_and_original_values.gpkg")
 zqpm <-read_sf(paste0(onedrive_path,"Waterbodies_with_binned_and_original_values.gpkg"))
 
 # Watersheds of some scale
@@ -73,6 +72,9 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
   
   sockeye = bcinvadeR::grab_aq_occ_data('sockeye salmon')
   
+  # Ensure the geometry column has the right name!
+  sockeye = sockeye |> rename(geom = geometry)
+  
   # Filter Sockeye for just Cultus lake.
   cultus = bcdc_query_geodata('freshwater-atlas-lakes') |> 
     filter(GNIS_NAME_1 == 'Cultus Lake') |> 
@@ -93,8 +95,6 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
         dplyr::select(Population_EN, Common_Name_EN, Scientific_Name, Taxon) |> 
         sf::st_transform(3857)
     )
-  
-  # Include SARA critical habitat?
   
   ### Critical habitat
   critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
@@ -165,7 +165,7 @@ mergedPopn |>
 zqpmUseFilt<-zqpm %>% arrange(desc(InvasionRisk)) %>% 
   dplyr::select(WATERSH, WATERBO, GNIS_NA, InvasionRisk) %>% 
   filter(!GNIS_NA %in% c("Dry Storage", "Pacific Ocean")) %>% 
-  filter(InvasionRisk >= 3)
+  filter(InvasionRisk >= 2)
 
 # ws_high_priority<-st_filter(ws, zqpmUseFilt)
 
@@ -277,12 +277,17 @@ sara_by_wb = sara_by_wb %>%
   dplyr::distinct() %>% 
   dplyr::add_count(GNIS_NA, name = 'number_distinct_SAR') |> 
   dplyr::group_by(GNIS_NA,number_distinct_SAR) |> 
-  dplyr::summarise(SARA_species = paste0(Common_Name_EN, collapse = ', ')) |> 
-  dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0),
-                SARA_species = replace_na(SARA_species, 'None'))
+  dplyr::summarise(SARA_species = paste0(Common_Name_EN, collapse = ', ')) 
 
 zqpmUseFilt = zqpmUseFilt %>% 
-  dplyr::left_join(sara_by_wb)
+  dplyr::left_join(sara_by_wb) |> 
+  dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0),
+                SARA_species = replace_na(SARA_species, 'None'))
+  
+# Maybe to change here: drop bin 2 priority waterbodies
+# if they do not overlap with the species-at-risk data.
+zqpmUseFilt = zqpmUseFilt |> 
+  dplyr::filter(number_distinct_SAR > 0)
 
 #streams - get some SAR and crosschecck with Use
 # ws_Sar<-ws[!is.na(ws$number_distinct_SAR),]
@@ -380,16 +385,18 @@ main_map = ggplot() +
   ggspatial::annotation_scale()
 
 # The following code to combine plots uses the {patchwork} package.
-main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
+if(!interactive()) {
+  main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
+}
 ```
 
 ### Number of Distinct SARA sp.
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-# col_ramp<-colorRampPalette(c("Green", "Purple"))
+col_ramp<-colorRampPalette(c("Green", "Purple"))
 col5<-col_ramp(4)
 
-ggplot() + 
+g = ggplot() + 
   geom_sf(data = bc, alpha = 0.25) +
   geom_sf(data = ds_geom_sum, col = 'grey') +
   geom_sf(data = zqpmUseFilt, 
@@ -410,16 +417,33 @@ ggplot() +
   coord_sf(xlim = sf::st_bbox(ds_geom_sum)[c(1,3)],
            ylim = sf::st_bbox(ds_geom_sum)[c(2,4)]) + 
   ggspatial::annotation_scale()
+
+if(!interactive()) {
+  print(g)
+}
 ```
 
 ### Interactive Map
 ```{r}
 zqpm_wgs = sf::st_transform(zqpmUseFilt, 4326)
 
-my_pal = leaflet::colorNumeric(
+my_pal = leaflet::colorFactor(
   palette = 'PRGn',
-  domain = unique(zqpm_wgs$number_distinct_SAR)
+  domain = as.factor(unique(zqpm_wgs$number_distinct_SAR))
 )
+
+my_pal_l = leaflet::colorFactor(
+  palette = 'PRGn',
+  domain =  as.factor(unique(zqpm_wgs$number_distinct_SAR)),
+  reverse = T
+)
+
+# Set colours manually
+zqpm_wgs = zqpm_wgs |> 
+  mutate(leaf_col = case_when(
+    number_distinct_SAR == 0 ~ 0,
+    number_distinct_SAR > 0 ~ 0.75
+  ))
 
 my_tbls = leafpop::popupTable(
   zqpmUseFilt |> 
@@ -435,108 +459,48 @@ leaflet(height = 600) |>
     data = zqpm_wgs,
     label = ~paste0(GNIS_NA,": ",number_distinct_SAR),
     popup = lapply(my_tbls, htmltools::HTML),
-    color = ~my_pal(number_distinct_SAR)
+    color = ~my_pal(number_distinct_SAR),
+    opacity = ~leaf_col
   ) |> 
   addLegend(
     title = "Number of<br>Distinct SARA",
-    pal = my_pal,
-    values = unique(zqpm_wgs$number_distinct_SAR)
+    pal = my_pal_l,
+    values = unique(zqpm_wgs$number_distinct_SAR),
+    labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE))
   ) |> 
   addScaleBar(position = 'bottomright')
 ```
 
+### Downstream Network Overlaps
+```{r downstream_plot}
 
-```{r all_data}
-### All Data
+fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
+dplyr::summarise()
 
-#define the color palette
-# sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
+columbia = sf::read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |>
+dplyr::summarise()
 
-# Combine high-priority waterbodies, downstream networks, and subwatersheds with counts of distinct SARA-listed species into one sf object (then we can use the fill for three different datsets!)
+big_boys = dplyr::bind_rows(fras, columbia)
 
-# sf_dat_for_plot = dplyr::bind_rows(
-#   ws |> 
-#     dplyr::filter(!is.na(number_distinct_SAR) | WATERSHED_GROUP_NAME %in% ws_high_priority$WATERSHED_GROUP_NAME) |> 
-#     mutate(type = "Number SARA-listed Species") |> 
-#     dplyr::select(),
-#   ds_geom_sum |> 
-#     dplyr::rename(geom = geometry) |> 
-#     dplyr::mutate(type = "Downstream\nNetwork"),
-#   zqpmUseFilt |> 
-#     dplyr::mutate(type = "High-priority\nWaterbody")
-# )
+ ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
 
-# ggplot()+
-#   geom_sf(data = bc, fill = "lightgrey", color = "darkgrey", alpha = 0.7)+ 
-#   geom_sf(data = ws[!is.na(ws$number_distinct_SAR) | ws$WATERSHED_GROUP_NAME %in% ws_high_priority$WATERSHED_GROUP_NAME,], aes(fill = as.factor(number_distinct_SAR))) +
-#   scale_fill_manual(values =  sp_colors, na.value = "grey")+
-#   # geom_sf(data= ds_geom_sum, fill = "red", color="dark red") +
-#   geom_sf(data = priority_wb_and_ds, col = 'red', fill = 'red') +
-#   geom_sf(data = ws_high_priority, fill = "transparent", color = "purple", linewidth = 0.8) + 
-#   labs(title = "Number of SARA-listed Species and High Priority Subwatersheds",
-#        subtitle = "High priority subwatersheds outlined in purple\nHigh priority waterbodies and downstream Networks in red",
-#        fill = "No. species at risk") +
-#   annotation_scale(location = "br", width_hint = 0.5) +
-#   ggthemes::theme_map()+
-#   theme(plot.title = element_text(size = rel(1.8), face = "bold"),
-#         plot.subtitle = element_text(size = rel(1.6)),
-#         legend.title = element_text(size = rel(1.3)),
-#         legend.text = element_text(size = rel(1.1))
-#         )
-  
-```
+ ggplot() +
+   geom_sf(data = big_boys) +
+   geom_sf(data = ds_by_dr_riv) +
+   geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN)) +
+   coord_sf(xlim = ds_limits[c(1,3)],
+            ylim = ds_limits[c(2,4)]) +
+   labs(fill = 'SARA-listed species',
+        col = 'SARA-listed species')
 
-```{r}
-### Only Overlapping Data
-
-# ggplot()+
-#   geom_sf(data = bc, fill = "lightgrey", color = "darkgrey", alpha = 0.7)+ 
-#   geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
-#   scale_fill_manual(values =  sp_colors, na.value = "grey")+
-#   geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
-#   geom_sf(data= ws_high_priority_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) + 
-#   labs(title = "Number of SARA-listed Species and High Priority Subwatersheds",
-#        subtitle = "High priority subwatersheds outlined in purple \nHigh priority waterbodies and downstream network in red",
-#        fill = "No. species at risk") +
-#   annotation_scale(location = "br", width_hint = 0.5) +
-#   ggthemes::theme_map()+
-#   theme(plot.title = element_text(size = rel(1.8), face = "bold"),
-#         plot.subtitle = element_text(size = rel(1.6)),
-#         legend.title = element_text(size = rel(1.3)),
-#         legend.text = element_text(size = rel(1.1))
-#         )
-
-```
-
-
-```{r Road_Network_Plot}
-### Cropped and road Network
-
-# roadNetwork<-bcdc_query_geodata("digital-road-atlas-dra-master-partially-attributed-roads") %>% 
-#   filter(BBOX(local(st_bbox(ws_high_priority_Overlap, crs = st_crs(ws_high_priority_Overlap))))) %>% 
-#   filter(!is.na(HIGHWAY_ROUTE_NUMBER)) %>% 
-#   collect()
-# 
-# ggplot()+
-#   geom_sf(data = st_crop(bc, ws_high_priority_Overlap), fill = "lightgrey", color = "darkgrey", alpha = 0.7)+
-#   geom_sf(data = ws_Sar, aes(fill = as.factor(number_distinct_SAR))) +
-#   scale_fill_manual(values =  sp_colors, na.value = "grey")+
-#   geom_sf(data= zqpm_Overlap, fill = "red", color="dark red") +
-#   geom_sf(data= ws_high_priority_Overlap, fill = "transparent", color = "purple", linewidth = 0.8) +
-#   geom_sf(data = roadNetwork, color = "Black", linewidth = 1, alpha = 0.4)+
-#   labs(title = "Number of Distict SAR Species and High use sub-watersheds",
-#        subtitle = "High use sub-watershed outlined in purple \nHigh use waterbodies and downstream network in red \nRoad networks in black",
-#        fill = "No. species at risk") +
-#   annotation_scale(location = "br", width_hint = 0.5) +
-#   coord_sf(xlim = sf::st_bbox(ws_high_priority)[c(1,3)],
-#            ylim = sf::st_bbox(ws_high_priority)[c(2,4)]) + 
-#   ggthemes::theme_map()+
-#   theme(plot.title = element_text(size = rel(2), face = "bold"),
-#         plot.subtitle = element_text(size = rel(1.8)),
-#         legend.title = element_text(size = rel(1.3)),
-#         legend.text = element_text(size = rel(1.1))
-#         )
-
+ sara_by_dr_river |>
+   mutate(draining_river = case_when(
+     draining_river == '100' ~ "Fraser River",
+     draining_river == '300' ~ "Columbia River",
+     T ~ draining_river
+   )) |>
+   sf::st_drop_geometry() |>
+   knitr::kable()
 ```
 
 ## Data as Table
