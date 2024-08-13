@@ -487,7 +487,7 @@ big_boys = dplyr::bind_rows(fras, columbia)
  ggplot() +
    geom_sf(data = big_boys) +
    geom_sf(data = ds_by_dr_riv) +
-   geom_sf(data = sara_by_dr_river_w_geom[sara_by_dr_river_w_geom$Common_Name_EN %in% c(all_sara_matched),], aes(col = Common_Name_EN, fill = Common_Name_EN)) +
+   geom_sf(data = sara_by_dr_river_w_geom, aes(col = Common_Name_EN, fill = Common_Name_EN)) +
    coord_sf(xlim = ds_limits[c(1,3)],
             ylim = ds_limits[c(2,4)]) +
    labs(fill = 'SARA-listed species',
