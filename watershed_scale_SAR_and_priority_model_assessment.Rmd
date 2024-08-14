@@ -476,7 +476,7 @@ if(!interactive()) {
 ```
 
 
-```{r downstream_plot}
+#```{r downstream_plot}
 ### Downstream Network Overlaps
 # 
 # fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
@@ -508,15 +508,17 @@ if(!interactive()) {
 #    knitr::kable()
 # ```
 # 
-# ## Data as Table
-# ```{r}
-# DT::datatable(
-#   zqpmUseFilt |> 
-#     sf::st_drop_geometry() |> 
-#     dplyr::select(-WATERSH, -WATERBO) |> 
-#     dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |> 
-#     dplyr::mutate(SARA_species = replace_na(SARA_species, "None"))
-# )
+## Data as Table
+```{r}
+DT::datatable(
+  zqpmUseFilt |>
+    sf::st_drop_geometry() |>
+    dplyr::select(-WATERSH, -WATERBO) |>
+    dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |>
+    dplyr::mutate(SARA_species = replace_na(SARA_species, "None")),
+  options = list(
+            columnDefs = list(list(className = 'dt-center', targets = 0:4)))
+)
 ```
 
 ### SARA species overlap by downstream networks
@@ -558,6 +560,21 @@ ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
    )) |>
    sf::st_drop_geometry() |>
    knitr::kable()
+ 
+ 
+```
+
+
+```{r}
+### Table of species by waterbody
+# sara_by_wb |>
+#    mutate(River = case_when(
+#      draining_river == '100' ~ "Fraser River",
+#      draining_river == '300' ~ "Columbia River",
+#      T ~ draining_river
+#    )) |>
+#    sf::st_drop_geometry() |>
+#    knitr::kable()
 ```
 
 
