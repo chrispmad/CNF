@@ -424,6 +424,19 @@ g = ggplot() +
 if(!interactive()) {
   print(g)
 }
+
+## Waterbody by species
+DT::datatable(
+  zqpmUseFilt |>
+    sf::st_drop_geometry() |>
+    dplyr::select(-WATERSH, -WATERBO) |>
+    dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |>
+    dplyr::mutate(SARA_species = replace_na(SARA_species, "None")),
+    options = list(
+            columnDefs = list(list(className = 'dt-center', targets = 0:4))
+            )
+)
+
 ```
 
 
@@ -476,9 +489,9 @@ if(!interactive()) {
 ```
 
 
-#```{r downstream_plot}
-### Downstream Network Overlaps
-# 
+```{r downstream_plot}
+## Downstream Network Overlaps
+
 # fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
 # dplyr::summarise()
 # 
@@ -506,19 +519,11 @@ if(!interactive()) {
 #    )) |>
 #    sf::st_drop_geometry() |>
 #    knitr::kable()
-# ```
-# 
-## Data as Table
+```
+
+
 ```{r}
-DT::datatable(
-  zqpmUseFilt |>
-    sf::st_drop_geometry() |>
-    dplyr::select(-WATERSH, -WATERBO) |>
-    dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |>
-    dplyr::mutate(SARA_species = replace_na(SARA_species, "None")),
-  options = list(
-            columnDefs = list(list(className = 'dt-center', targets = 0:4)))
-)
+### Data as Table
 ```
 
 ### SARA species overlap by downstream networks
