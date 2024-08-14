@@ -422,7 +422,7 @@ if(!interactive()) {
 }
 ```
 
-### Overlapping Target Species and Priority Waterbodies
+#### Overlapping Target Species and Priority Waterbodies
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
 cols<-c("#007bff", "#ff7f00", "#228b22")
@@ -457,7 +457,7 @@ if(!interactive()) {
 
 ```
 
-## Results as Table
+### Results as Table
 ```{r}
 ## Waterbody by species
 DT::datatable(
