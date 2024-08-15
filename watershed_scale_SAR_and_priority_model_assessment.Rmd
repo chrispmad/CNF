@@ -66,16 +66,19 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
   sara = sara |> 
     dplyr::filter(Scientific_Name == "Cottus aleuticus" & str_detect(Population_EN, 'Cultus') |
                     Scientific_Name == "Oncorhynchus clarkii lewisi" & str_detect(Population_EN,'Pacific') | 
-                    Scientific_Name == "Salvelinus confluentus" & str_detect(Population_EN,'South Coast') | 
+                    Scientific_Name == "Salvelinus confluentus" & str_detect(Population_EN,'South Coast') |
                     Scientific_Name == "Gonidea angulata")
   
   # sara |> st_drop_geometry() |> count(Scientific_Name, Population_EN)
   
   sockeye = bcinvadeR::grab_aq_occ_data('sockeye salmon')
   
+  bulltrout = bcinvadeR::grab_aq_occ_data('bull trout')
+  
   # Ensure the geometry column has the right name!
   sockeye = sockeye |> rename(geom = geometry)
-  
+  bulltrout = bulltrout |> rename(geom = geometry)
+
   # Filter Sockeye for just Cultus lake.
   cultus = bcdc_query_geodata('freshwater-atlas-lakes') |> 
     filter(GNIS_NAME_1 == 'Cultus Lake') |> 
@@ -85,17 +88,35 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
   sockeye = sockeye |> 
     sf::st_filter(cultus)
   
+  # Filter bulltrout for just south coast
+  regs = bcmaps::nr_regions()
+  south_coast = regs[regs$ORG_UNIT_NAME == "South Coast Natural Resource Region",]
+  south_coast = sf::st_transform(south_coast, st_crs(bulltrout))
+  
+  bulltrout = bulltrout |> 
+    sf::st_filter(south_coast)
+  
+  # Prepare sockeye and bulltrout for binding to SARA data.
+  sockeye_for_bind = sockeye |> 
+    dplyr::mutate(Population_EN = 'Cultus',
+                  Common_Name_EN = 'Sockeye Salmon',
+                  Scientific_Name = 'Oncorhynchus nerka',
+                  Taxon = 'Fishes') |> 
+    dplyr::select(Population_EN, Common_Name_EN, Scientific_Name, Taxon) |> 
+    sf::st_transform(3857)
+  
+  bulltrout_for_bind = bulltrout |> 
+    dplyr::mutate(Population_EN = 'South Coast',
+                  Common_Name_EN = 'Bull Trout',
+                  Scientific_Name = 'Salvelinus confluentus',
+                  Taxon = 'Fishes') |> 
+    dplyr::select(Population_EN, Common_Name_EN, Scientific_Name, Taxon) |> 
+    sf::st_transform(3857)
+  
   # Merge sockeye with SARA
   occdat = sara |> 
-    dplyr::bind_rows(
-      sockeye |> 
-        dplyr::mutate(Population_EN = 'Cultus',
-                      Common_Name_EN = 'Sockeye Salmon',
-                      Scientific_Name = 'Oncorhynchus nerka',
-                      Taxon = 'Fishes') |> 
-        dplyr::select(Population_EN, Common_Name_EN, Scientific_Name, Taxon) |> 
-        sf::st_transform(3857)
-    )
+    dplyr::bind_rows(sockeye_for_bind) |> 
+    dplyr::bind_rows(bulltrout_for_bind)
   
   ### Critical habitat
   critHab<-read_sf(paste0(onedrive_path,"federal_critical_habitat.gpkg"))
@@ -119,9 +140,12 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
                     Scientific_Name == "Gonidea angulata")
   #unique(critHab$Common_Name_EN)
   
+  
   # critHabTrans<-st_transform(critHab_sciFilt, st_crs(occdat))
   mergedPopn<-bind_rows(occdat, critHab_sciFilt)
   
+  # ggplot() + geom_sf(data = bcmaps::bc_bound()) + 
+  #   geom_sf(data = mergedPopn)
   # Do st_difference with bc polygon.
   mergedPopn = ensure_multipolygons(mergedPopn)
   
@@ -129,12 +153,14 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
   
   mergedPopn_d = sf::st_difference(mergedPopn, bcmaps::bc_bound() |> dplyr::summarise() |> sf::st_transform(3857))
   
-  #ggplot() + geom_sf(data = mergedPopn)
+  ggplot() + geom_sf(data = mergedPopn)
   
   sf::write_sf(mergedPopn, paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpkg"))
 } else {
   mergedPopn = read_sf(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpkg"))
 }
+
+mergedPopn = sf::st_transform(mergedPopn, 3005)
 ```
 
 ### DFO and Sockeye Data Summary
@@ -382,13 +408,13 @@ priority_wb_and_ds = dplyr::bind_rows(
 ) |> 
   arrange(type)
 
-# make map insert of BC with region highlighted.
-map_inset = ggplot() + 
-  geom_sf(data = bc) + 
-  # geom_sf(data = dplyr::summarise(ws_high_priority), fill = 'purple') +
-  geom_sf(data = priority_wb_and_ds, col = 'red') +
-  ggthemes::theme_map() + 
-  theme(plot.background = element_rect(color = 'black'))
+# # make map insert of BC with region highlighted.
+# map_inset = ggplot() + 
+#   geom_sf(data = bc) + 
+#   # geom_sf(data = dplyr::summarise(ws_high_priority), fill = 'purple') +
+#   geom_sf(data = priority_wb_and_ds, col = 'red') +
+#   ggthemes::theme_map() + 
+#   theme(plot.background = element_rect(color = 'black'))
 
 main_map = ggplot() +
   geom_sf(data = bc) +
@@ -406,8 +432,8 @@ main_map = ggplot() +
        fill = "Waterbody\nType",
        colour = "Waterbody\nType")+
   ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(3), face = "bold"),
-        plot.subtitle = element_text(size = rel(2)),
+  theme(plot.title = element_text(size = rel(2), face = "bold"),
+        plot.subtitle = element_text(size = rel(1.8)),
         legend.title = element_text(size = rel(1.8)),
         legend.text = element_text(size = rel(1.2)),
         legend.position = 'right'
@@ -417,15 +443,38 @@ main_map = ggplot() +
   ggspatial::annotation_scale()
 
 # The following code to combine plots uses the {patchwork} package.
-if(!interactive()) {
-  main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
-}
+# if(!interactive()) {
+#   main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
+# }
+main_map
+```
+
+#### Occurrence of Five Target Species
+```{r}
+ggplot() + 
+  geom_sf(data = bc |> sf::st_transform(sf::st_crs(mergedPopn)), alpha = 0.25) +
+  geom_sf(data = mergedPopn, aes(color = Common_Name_EN, fill = Common_Name_EN)) + 
+  coord_sf(xlim = sf::st_bbox(mergedPopn)[c(1,3)],
+           ylim = sf::st_bbox(mergedPopn)[c(2,4)]) +
+  # theme(legend.position = 'none') +
+  labs(title = 'Distribution of Five Target Species in BC',
+       fill = "Species Common Name",
+       colour =  "Species Common Name") +
+  ggthemes::theme_map() + 
+  theme(plot.title = element_text(size = rel(2), face = "bold"),
+        plot.subtitle = element_text(size = rel(1.8)),
+        legend.title = element_text(size = rel(1.8)),
+        legend.text = element_text(size = rel(1.2)),
+        panel.background = element_blank(),
+        legend.position = 'right'
+  )
+  
 ```
 
 #### Overlapping Target Species and Priority Waterbodies
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-cols<-c("#007bff", "#ff7f00", "#228b22")
+cols<-c("#007bff", "#ff7f00", "#228b22", "purple")
 #cols<-col_ramp(4)
 
 g = ggplot() + 
