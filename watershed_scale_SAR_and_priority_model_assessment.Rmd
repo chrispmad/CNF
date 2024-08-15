@@ -13,7 +13,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
-                      fig.width = 10, fig.height = 8)
+                      fig.width = 12, fig.height = 8)
 library(tidyverse)
 library(sf) # shapes
 library(viridis) # colors
@@ -161,6 +161,8 @@ if(!file.exists(paste0(onedrive_path,"dfo_sara_and_crit_hab_and_sockeye_data.gpk
 }
 
 mergedPopn = sf::st_transform(mergedPopn, 3005)
+
+
 ```
 
 ### DFO and Sockeye Data Summary
@@ -314,15 +316,15 @@ zqpmUseFilt<-zqpm %>% arrange(desc(InvasionRisk)) %>%
 sara_by_wb = mergedPopn %>%
   st_transform(3005) %>% 
   st_simplify() %>% 
-  st_join(zqpmUseFilt %>% dplyr::select(GNIS_NA)) %>% 
+  st_join(zqpmUseFilt %>% dplyr::select(GNIS_NA, WATERBO)) %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::select(Scientific_Name,Common_Name_EN,GNIS_NA)
+  dplyr::select(Scientific_Name,Common_Name_EN,GNIS_NA, WATERBO)
 
 sara_by_wb = sara_by_wb %>%
   dplyr::filter(!is.na(GNIS_NA)) |> 
   dplyr::distinct() %>% 
-  dplyr::add_count(GNIS_NA, name = 'number_distinct_SAR') |> 
-  dplyr::group_by(GNIS_NA,number_distinct_SAR) |> 
+  dplyr::add_count(GNIS_NA, WATERBO, name = 'number_distinct_SAR') |> 
+  dplyr::group_by(GNIS_NA,number_distinct_SAR, WATERBO) |> 
   dplyr::summarise(SARA_species = paste0(Common_Name_EN, collapse = ', ')) 
 
 zqpmUseFilt = zqpmUseFilt %>% 
@@ -357,15 +359,6 @@ bc <- suppressMessages(bc_bound())
 
 ```
 
-The shortlist of priority waterbodies consists of `r nrow(zqpm)` waterbodies. `r nrow(zqpmUseFilt)` of these waterbodies overlapped with at least one of the target species.
-
-```{r}
-DT::datatable(
-  zqpm |> 
-  sf::st_drop_geometry() |> 
-  dplyr::select(GNIS_NA, InvasionRisk)
-)
-```
 
 ```{r downstream_network_overlap}
 # # Do a relatively simple overlap with the downstream geometries split by major draining river.
@@ -395,6 +388,7 @@ DT::datatable(
 ### Figures {.tabset}
 
 #### High-Priority Waterbodies from ZQM Model
+Lowest risk factor is 1, and increases to maximum risk of 3
 ```{r high_Priority_waterbodies_by_Subwatershed}
 
 # Combine the waterbodies flagged as high risk by the ZQ Mussel Prioritization Model with the downstream sections we found above; this allows us to plot a single sf object to the plot below and utilize a legend to easily explain what is what.
@@ -422,15 +416,17 @@ main_map = ggplot() +
   # geom_sf(data=ws_high_priority, fill = "purple", color = "black", alpha = 0.3)+
   # geom_sf(data=ds_geom_sum, fill = "orange", color="orange")+
   # geom_sf(data=zqpmUseFilt, fill = "red", color="darkred")+
-  geom_sf(data = priority_wb_and_ds,aes(fill = type, col = type)) +
-  scale_fill_manual(values = c("Downstream\nNetwork" = "orange",
-                               "High-priority\nWaterbody" = "red")) +
-  scale_colour_manual(values = c("Downstream\nNetwork" = "orange",
-                               "High-priority\nWaterbody" = "red")) +
-  labs(title = paste0("High Priority Waterbodies (N = ",nrow(zqpm),")"),
+  geom_sf(data = priority_wb_and_ds,aes(fill = as.factor(InvasionRisk), col = as.factor(InvasionRisk))) +
+  # scale_fill_manual(values = c("Downstream\nNetwork" = "orange",
+  #                              "High-priority\nWaterbody" = "red")) +
+  # scale_colour_manual(values = c("Downstream\nNetwork" = "orange",
+  #                              "High-priority\nWaterbody" = "red")) +
+  
+  labs(title = paste0("ZQM model risk factor"),
+       subtitle = paste0("Waterbody count (N = ",nrow(zqpm),")"),
        # subtitle = paste0("This includes downstream networks. \nTotal number of subwatersheds: ",nrow(ws_high_priority)),
-       fill = "Waterbody\nType",
-       colour = "Waterbody\nType")+
+       fill = "ZQM Risk Factor",
+       colour = "ZQM Risk Factor")+
   ggthemes::theme_map()+
   theme(plot.title = element_text(size = rel(2), face = "bold"),
         plot.subtitle = element_text(size = rel(1.8)),
@@ -451,22 +447,27 @@ main_map
 
 #### Occurrence of Five Target Species
 ```{r}
+
+labelpoint<-mergedPopn[mergedPopn$Common_Name_EN == "Sockeye Salmon", ][1,]
 ggplot() + 
   geom_sf(data = bc |> sf::st_transform(sf::st_crs(mergedPopn)), alpha = 0.25) +
-  geom_sf(data = mergedPopn, aes(color = Common_Name_EN, fill = Common_Name_EN)) + 
-  coord_sf(xlim = sf::st_bbox(mergedPopn)[c(1,3)],
-           ylim = sf::st_bbox(mergedPopn)[c(2,4)]) +
+  geom_sf(data = mergedPopn, aes(color = Common_Name_EN, fill = Common_Name_EN))+
+ggrepel::geom_label_repel(data = labelpoint, 
+                  aes(label = "Sockeye Salmon and Cultus Pygmy Sculpin", geometry = geom),stat = 'sf_coordinates', size = 3, nudge_y = -18000, nudge_x = ) +
+  coord_sf(xlim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(1,3)],
+           ylim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(2,4)]) +
   # theme(legend.position = 'none') +
   labs(title = 'Distribution of Five Target Species in BC',
        fill = "Species Common Name",
        colour =  "Species Common Name") +
-  ggthemes::theme_map() + 
+  #::theme_map() + 
   theme(plot.title = element_text(size = rel(2), face = "bold"),
         plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.8)),
-        legend.text = element_text(size = rel(1.2)),
+        legend.title = element_text(size = rel(1.3)),
+        legend.text = element_text(size = rel(1)),
         panel.background = element_blank(),
-        legend.position = 'right'
+        legend.position = 'bottom',
+        
   )
   
 ```
@@ -476,6 +477,10 @@ ggplot() +
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
 cols<-c("#007bff", "#ff7f00", "#228b22", "purple")
 #cols<-col_ramp(4)
+zqpmUseFiltCopy<-zqpmUseFilt
+
+zqpmUseFilt <- zqpmUseFilt %>% 
+  
 
 g = ggplot() + 
   geom_sf(data = bc, alpha = 0.25) +
@@ -518,6 +523,18 @@ DT::datatable(
     options = list(
             columnDefs = list(list(className = 'dt-center', targets = 0:4))
             )
+)
+```
+
+## Appendix
+### Table of high-priority waterbodies
+The shortlist of priority waterbodies consists of `r nrow(zqpm)` waterbodies. `r nrow(zqpmUseFilt)` of these waterbodies overlapped with at least one of the target species.
+
+```{r}
+DT::datatable(
+  zqpm |> 
+  sf::st_drop_geometry() |> 
+  dplyr::select(GNIS_NA, InvasionRisk)
 )
 ```
 
