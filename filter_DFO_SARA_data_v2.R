@@ -17,6 +17,8 @@ ensure_multipolygons <- function(X) {
 
 bc = bcmaps::bc_bound() |> dplyr::summarise()
 
+# Read in the critical habitat layer.
+
 # If we haven't yet split this by species, do it now.
 if(!file.exists("data/dfo_occ_data_by_species/dfo_occ_bull trout.gpkg")){
   dfo_sara_occ_data = st_read(dsn = 'data/Distribution_Repartition/Distribution_FGP.gdb/',
@@ -33,10 +35,18 @@ if(!file.exists("data/dfo_occ_data_by_species/dfo_occ_bull trout.gpkg")){
 }
 
 if(!file.exists("data/dfo_occ_data_by_species/dfo_occ_bull trout_cleaned.gpkg")){
+  
+  # Trim to BC.
+  bc_pseudomerc = sf::st_transform(bc, st_crs(bt))
+  
+  bt_bc = sf::st_intersection(bt, bc_pseudomerc)
+  
   # Replace complex bulltrout geometry with the giant bulltrout polygon I drew.
   bt_big_shape = sf::read_sf("C:/Users/CMADSEN/OneDrive - Government of BC/data/CNF/handmade_bulltrout_NE_BC_polygon.gpkg")
   
   bt = sf::read_sf("data/dfo_occ_data_by_species/dfo_occ_bull trout.gpkg")
+  
+  
   
   bt_big_shape = st_transform(bt_big_shape, st_crs(bt))
   
