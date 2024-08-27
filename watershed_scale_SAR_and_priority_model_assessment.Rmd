@@ -37,7 +37,7 @@ redo_downstream = FALSE
 
 Background: This assessment uses the high-priority waterbodies as defined by the Zebra-Quagga Mussel Prioritization Model (2024 edition), DFO SARA-listed species occurrence data and critical habitat data, and BC Data Catalogue SPI data for Sockeye Salmon and Bull Trout to assess overlap between 5 species (4 SARA-listed species and Sockeye Salmon) and the high-priority waterbodies. More detail below.
 
-Note: At present, no DFO data exists for Bull Trout population of South Coast, nor for Sockeye Salmon population at Cultus Lake; thus, we turned to the BC Data Catalogue and research-grade iNaturalist reports for those two species.
+Note: At present, no DFO data exists for Bull Trout population of South Coast, nor for Sockeye Salmon population at Cultus Lake; thus, we turned to the BC Data Catalogue and research-grade iNaturalist reports for those two species. Bull Trout records were spatially filtered to just the South Coast Natural Resource Region and Sockeye Salmon records were filtered for just Cultus Lake.
 
 Note: We also sought records for these five target species in the [provincial Species-at-risk layer](https://catalogue.data.gov.bc.ca/dataset/species-and-ecosystems-at-risk-publicly-available-occurrences-cdc); only one species was present in this dataset (Rocky Mountain Ridged Mussel), with a single observation that was not already present in the DFO SARA dataset.
 
@@ -251,7 +251,8 @@ bc <- suppressMessages(bc_bound())
 ### Visualized Data {.tabset}
 
 #### High-Priority Waterbodies from ZQM Model
-Lowest risk factor is 1, and increases to maximum risk of 3
+Lowest risk factor is 1, and increases to maximum risk of 3. There are `r nrow(zqpm[zqpm$InvasionRisk==1,])` waterbodies with Invasion Risk 1 (retained as priority waterbodies because at least one mussel-fouled watercraft has listed these waterbodies as their destination), `r nrow(zqpm[zqpm$InvasionRisk==2,])` waterbodies with Invasion Risk 2, and `r nrow(zqpm[zqpm$InvasionRisk==3,])` waterbodies with Invasion Risk 3.
+
 ```{r high_Priority_waterbodies_by_Subwatershed}
 
 # Combine the waterbodies flagged as high risk by the ZQ Mussel Prioritization Model with the downstream sections we found above; this allows us to plot a single sf object to the plot below and utilize a legend to easily explain what is what.
@@ -310,7 +311,7 @@ main_map
 ```
 
 #### Occurrence of Five Target Species
-```{r}
+```{r map_of_target_species_occurrence}
 
 labelpoint<-mergedPopn[mergedPopn$Common_Name_EN == "Sockeye Salmon", ][1,]
 ggplot() + 
@@ -391,7 +392,7 @@ if(!interactive()) {
 ```
 
 #### Table
-```{r}
+```{r interactive_DT}
 ## Waterbody by species
 DT::datatable(
   zqpmUseFilt |>
@@ -494,150 +495,10 @@ DT::datatable(
 ### Table of high-priority waterbodies
 The shortlist of priority waterbodies consists of `r nrow(zqpm)` waterbodies. `r nrow(zqpmUseFilt)` of these waterbodies overlapped with at least one of the target species.
 
-```{r}
+```{r appendix_DT}
 DT::datatable(
   zqpm |> 
   sf::st_drop_geometry() |> 
   dplyr::select(GNIS_NA, InvasionRisk)
 )
 ```
-
-```{r}
-### Interactive Map
-# zqpm_wgs = sf::st_transform(zqpmUseFilt, 4326)
-# 
-# my_pal = leaflet::colorFactor(
-#   palette = 'PRGn',
-#   domain = as.factor(unique(zqpm_wgs$number_distinct_SAR))
-# )
-# 
-# my_pal_l = leaflet::colorFactor(
-#   palette = 'PRGn',
-#   domain =  as.factor(unique(zqpm_wgs$number_distinct_SAR)),
-#   reverse = T
-# )
-# 
-# # Set colours manually
-# zqpm_wgs = zqpm_wgs |> 
-#   mutate(leaf_col = case_when(
-#     number_distinct_SAR == 0 ~ 0,
-#     number_distinct_SAR > 0 ~ 0.75
-#   ))
-# 
-# my_tbls = leafpop::popupTable(
-#   zqpmUseFilt |> 
-#     sf::st_drop_geometry() |> 
-#     dplyr::select(-WATERSH,-WATERBO)
-#   )
-# 
-# leaflet(height = 600) |> 
-#   addTiles() |> 
-#   addProviderTiles(providers$Esri.OceanBasemap) |> 
-#   addProviderTiles(providers$CartoDB) |> 
-#   addPolylines(
-#     data = zqpm_wgs,
-#     label = ~paste0(GNIS_NA,": ",number_distinct_SAR),
-#     popup = lapply(my_tbls, htmltools::HTML),
-#     color = ~my_pal(number_distinct_SAR),
-#     opacity = ~leaf_col
-#   ) |> 
-#   addLegend(
-#     title = "Number of<br>Distinct SARA",
-#     pal = my_pal_l,
-#     values = unique(zqpm_wgs$number_distinct_SAR),
-#     labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE))
-#   ) |> 
-#   addScaleBar(position = 'bottomright')
-```
-
-
-```{r downstream_plot}
-## Downstream Network Overlaps
-
-# fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
-# dplyr::summarise()
-# 
-# columbia = sf::read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |>
-# dplyr::summarise()
-# 
-# big_boys = dplyr::bind_rows(fras, columbia)
-# 
-#  ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
-# 
-#  ggplot() +
-#    geom_sf(data = big_boys) +
-#    geom_sf(data = ds_by_dr_riv) +
-#    geom_sf(data = sara_by_dr_river_w_geom, aes(col = Common_Name_EN, fill = Common_Name_EN)) +
-#    coord_sf(xlim = ds_limits[c(1,3)],
-#             ylim = ds_limits[c(2,4)]) +
-#    labs(fill = 'SARA-listed species',
-#         col = 'SARA-listed species')
-# 
-#  sara_by_dr_river |>
-#    mutate(draining_river = case_when(
-#      draining_river == '100' ~ "Fraser River",
-#      draining_river == '300' ~ "Columbia River",
-#      T ~ draining_river
-#    )) |>
-#    sf::st_drop_geometry() |>
-#    knitr::kable()
-```
-
-```{r}
-
-### SARA species overlap by downstream networks
-
-# all_sara_matched = c("Westslope Cutthroat Trout", "Green Sturgeon", "Mountain Sucker","White Sturgeon","Shorthead Sculpin","Columbia Sculpin","Rocky Mountain Sculpin")
-# 
-# fras = sf::read_sf(paste0(onedrive_path,"fraser_watershed_priority_area.gpkg")) |>
-# dplyr::summarise()
-# 
-# columbia = sf::read_sf(paste0(onedrive_path,"columbia_watershed_priority_area.gpkg")) |>
-# dplyr::summarise()
-# 
-# # cultus<-zqpm %>% arrange(desc(InvasionRisk)) %>% 
-# #   dplyr::select(WATERSH, WATERBO, GNIS_NA, InvasionRisk) %>% 
-# #   filter(WATERBO == 329083342) %>% 
-# #   dplyr::select(-WATERSH, -WATERBO, -GNIS_NA, -InvasionRisk) %>% 
-# #   st_transform(4326)
-# 
-# big_boys = dplyr::bind_rows(fras, columbia)
-# #big_boys<-bind_rows(big_boys, cultus)
-# 
-# ds_limits = sf::st_bbox(st_transform(ds_by_dr_riv,4326))
-# 
-#  ggplot() +
-#    geom_sf(data = big_boys) +
-#    geom_sf(data = ds_by_dr_riv) +
-#    geom_sf(data = sara_by_dr_river_w_geom, aes(col = Common_Name_EN, fill = Common_Name_EN)) +
-#    coord_sf(xlim = ds_limits[c(1,3)],
-#             ylim = ds_limits[c(2,4)]) +
-#    labs(fill = 'SARA-listed species',
-#         col = 'SARA-listed species')
-# 
-#  sara_by_dr_river |>
-#    mutate(draining_river = case_when(
-#      draining_river == '100' ~ "Fraser River",
-#      draining_river == '300' ~ "Columbia River",
-#      T ~ draining_river
-#    )) |>
-#    sf::st_drop_geometry() |>
-#    knitr::kable()
- 
- 
-```
-
-
-```{r}
-### Table of species by waterbody
-# sara_by_wb |>
-#    mutate(River = case_when(
-#      draining_river == '100' ~ "Fraser River",
-#      draining_river == '300' ~ "Columbia River",
-#      T ~ draining_river
-#    )) |>
-#    sf::st_drop_geometry() |>
-#    knitr::kable()
-```
-
-
