@@ -213,8 +213,16 @@ mergedPopn |>
 
 ```{r filter_destination_waterbodies_and_find_downstream_networks_for_each}
 
-zqpmUseFilt<-zqpm %>% arrange(desc(InvasionRisk)) %>% 
-  dplyr::select(WATERSH, WATERBO, GNIS_NA, InvasionRisk) %>% 
+# Add sampling frequency field.
+
+zqpm = zqpm |> 
+  dplyr::mutate(sampling_freq = dplyr::case_when(
+    InvasionRisk == 3 | Highrisk == 3 | GNIS_NA == 'Kootenay River' ~ 'Biweekly',
+    T ~ 'Monthly'
+  ))
+
+zqpmUseFilt <- zqpm %>% arrange(desc(InvasionRisk)) %>% 
+  dplyr::select(WATERSH, WATERBO, GNIS_NA, InvasionRisk, sampling_freq) %>% 
   filter(!GNIS_NA %in% c("Dry Storage", "Pacific Ocean")) 
  
 # Summarise the SARA-listed, Whirling-Disease-sensitive fish species by subwatershed.
@@ -253,88 +261,184 @@ bc <- suppressMessages(bc_bound())
 #### High-Priority Waterbodies from ZQM Model
 Lowest risk factor is 1, and increases to maximum risk of 3. There are `r nrow(zqpm[zqpm$InvasionRisk==1,])` waterbodies with Invasion Risk 1 (retained as priority waterbodies because at least one mussel-fouled watercraft has listed these waterbodies as their destination), `r nrow(zqpm[zqpm$InvasionRisk==2,])` waterbodies with Invasion Risk 2, and `r nrow(zqpm[zqpm$InvasionRisk==3,])` waterbodies with Invasion Risk 3.
 
+To identify the waterbodies for bi-weekly sampling, waterbodies with an Invasion Risk score of 3 (the highest possible risk ranking) and/or a score of 3 for the “high risk” category (the highest possible risk ranking) were selected.
+
+```{r initialize_general_leaflet_map}
+l = leaflet() |> 
+  addTiles(group = 'openstreetmap') |> 
+  addProviderTiles(providers$Esri.NatGeoWorldMap, group = "NatGeoWorldMap") |> 
+  addProviderTiles(providers$CartoDB, group = 'white_bg')
+
+```
+
 ```{r high_Priority_waterbodies_by_Subwatershed}
+
 
 # Combine the waterbodies flagged as high risk by the ZQ Mussel Prioritization Model with the downstream sections we found above; this allows us to plot a single sf object to the plot below and utilize a legend to easily explain what is what.
 
-priority_wb_and_ds = dplyr::bind_rows(
-  # ds_geom_sum |> 
-  #   dplyr::rename(geom = geometry) |> 
-  #   dplyr::mutate(type = "Downstream\nNetwork"),
-  zqpm |> 
-    dplyr::mutate(type = "High-priority\nWaterbody")
-) |> 
-  arrange(type)
+# priority_wb_and_ds = dplyr::bind_rows(
+#   zqpm
+# ) |> 
+#   arrange(type)
 
-# # make map insert of BC with region highlighted.
-# map_inset = ggplot() + 
-#   geom_sf(data = bc) + 
-#   # geom_sf(data = dplyr::summarise(ws_high_priority), fill = 'purple') +
-#   geom_sf(data = priority_wb_and_ds, col = 'red') +
-#   ggthemes::theme_map() + 
-#   theme(plot.background = element_rect(color = 'black'))
+zqpm_4326 = sf::st_transform(zqpm, 4326)
 
-main_map = ggplot() +
-  geom_sf(data = bc) +
-  # geom_sf(data = ws_background, fill = "lightgrey")+ # simplify geom?
-  # geom_sf(data=ws_high_priority, fill = "purple", color = "black", alpha = 0.3)+
-  # geom_sf(data=ds_geom_sum, fill = "orange", color="orange")+
-  # geom_sf(data=zqpmUseFilt, fill = "red", color="darkred")+
-  geom_sf(data = priority_wb_and_ds,aes(fill = as.factor(InvasionRisk), col = as.factor(InvasionRisk))) +
-  # scale_fill_manual(values = c("Downstream\nNetwork" = "orange",
-  #                              "High-priority\nWaterbody" = "red")) +
-  # scale_colour_manual(values = c("Downstream\nNetwork" = "orange",
-  #                              "High-priority\nWaterbody" = "red")) +
-  scale_fill_manual(values = c("1" = "lightblue", "2" = "orange", "3" = "red"))+
-  scale_colour_manual(values = c("1" = "lightblue", "2" = "orange", "3" = "red"))+
-  labs(title = paste0("High-priority Waterbodies Flagged by ZQM Model"),
-       subtitle = paste0("Waterbody count (N = ",nrow(zqpm),")"),
-       # subtitle = paste0("This includes downstream networks. \nTotal number of subwatersheds: ",nrow(ws_high_priority)),
-       fill = "ZQM Risk Factor",
-       colour = "ZQM Risk Factor")+
-  ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.8)),
-        legend.text = element_text(size = rel(1.2)),
-        legend.position = 'right'
-  ) + 
-  coord_sf(xlim = sf::st_bbox(priority_wb_and_ds)[c(1,3)],
-           ylim = sf::st_bbox(priority_wb_and_ds)[c(2,4)]) + 
-  ggspatial::annotation_scale()
+zqpm_4326 = zqpm_4326 |> 
+  dplyr::mutate(InvasionRisk = factor(InvasionRisk, levels = c(1:3)))
 
-# The following code to combine plots uses the {patchwork} package.
-# if(!interactive()) {
-#   main_map + patchwork::inset_element(map_inset, right = 1, top = 1, left = 0.8, bottom = 0.75)
-# }
-main_map
+# Greatly simplify these geometries!
+zqpm_4326 = sf::st_simplify(zqpm_4326, dTolerance = 25)
+
+# main_map = ggplot() +
+#   geom_sf(data = bc) +
+#   geom_sf(data = priority_wb_and_ds,aes(fill = as.factor(InvasionRisk), col = as.factor(InvasionRisk))) +
+#   scale_fill_manual(values = c("1" = "lightblue", "2" = "orange", "3" = "red"))+
+#   scale_colour_manual(values = c("1" = "lightblue", "2" = "orange", "3" = "red"))+
+#   labs(title = paste0("High-priority Waterbodies Flagged by ZQM Model"),
+#        subtitle = paste0("Waterbody count (N = ",nrow(zqpm),")"),
+#        fill = "ZQM Risk Factor",
+#        colour = "ZQM Risk Factor")+
+#   ggthemes::theme_map()+
+#   theme(plot.title = element_text(size = rel(2), face = "bold"),
+#         plot.subtitle = element_text(size = rel(1.8)),
+#         legend.title = element_text(size = rel(1.8)),
+#         legend.text = element_text(size = rel(1.2)),
+#         legend.position = 'right'
+#   ) + 
+#   coord_sf(xlim = sf::st_bbox(priority_wb_and_ds)[c(1,3)],
+#            ylim = sf::st_bbox(priority_wb_and_ds)[c(2,4)]) + 
+#   ggspatial::annotation_scale()
+# 
+# main_map
+
+leaflet_popups = leafpop::popupTable(
+  zqpm_4326 |> 
+    sf::st_drop_geometry()
+)
+
+zqm_wb_pal = leaflet::colorFactor(
+  palette = c('#d8db12','#db8b12','#db2612'), 
+  domain = zqpm_4326$InvasionRisk,
+  reverse = F)
+
+zqm_wb_pal_leg = leaflet::colorFactor(
+  # palette = 'YlOrRd',
+  palette = c('#d8db12','#db8b12','#db2612'),
+  domain = zqpm_4326$InvasionRisk,
+  reverse = T) 
+
+
+l |> 
+  addPolygons(data = zqpm_4326,
+              fillColor = ~zqm_wb_pal(InvasionRisk),
+              weight = 1,
+              color = ~zqm_wb_pal(InvasionRisk),
+              fillOpacity = 0.75,
+              label = ~GNIS_NA,
+              group = 'waterbodies',
+              popup = lapply(leaflet_popups, htmltools::HTML)) |>
+  addMarkers(
+    data = sf::st_centroid(zqpm_4326[zqpm_4326$InvasionRisk == 1,]),
+    label = ~paste0(GNIS_NA,", Invasion Risk Bin 1")#,
+    # labelOptions = labelOptions(noHide = T)
+  ) |> 
+  addLegend(title = "ZQM Invasion Risk Bin",
+            pal = zqm_wb_pal_leg,
+            labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)),
+            values = unique(zqpm_4326$InvasionRisk)) |> 
+  addLayersControl(baseGroups = c("openstreetmap","NatGeoWorldMap","white_bg"),
+                   options = layersControlOptions(collapsed = F)) |> 
+  leaflet.extras::addSearchFeatures(targetGroups = "waterbodies")
 ```
 
 #### Occurrence of Five Target Species
 ```{r map_of_target_species_occurrence}
 
-labelpoint<-mergedPopn[mergedPopn$Common_Name_EN == "Sockeye Salmon", ][1,]
-ggplot() + 
-  geom_sf(data = bc |> sf::st_transform(sf::st_crs(mergedPopn)), alpha = 0.25) +
-  geom_sf(data = mergedPopn, aes(color = Common_Name_EN, fill = Common_Name_EN))+
-ggrepel::geom_label_repel(data = labelpoint, 
-                  aes(label = "Sockeye Salmon and Cultus Pygmy Sculpin", geometry = geom),stat = 'sf_coordinates', size = 3, nudge_y = -22000) +
-  coord_sf(xlim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(1,3)],
-           ylim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(2,4)]) +
-  # theme(legend.position = 'none') +
-  labs(title = 'Distribution of Five Target Species in BC',
-       fill = "Species Common Name",
-       colour =  "Species Common Name") +
-  #::theme_map() + 
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.3)),
-        legend.text = element_text(size = rel(1)),
-        panel.background = element_blank(),
-        legend.position = 'bottom',
-        
-  )
+# labelpoint<-mergedPopn[mergedPopn$Common_Name_EN == "Sockeye Salmon", ][1,]
+# 
+# ggplot() + 
+#   geom_sf(data = bc |> sf::st_transform(sf::st_crs(mergedPopn)), alpha = 0.25) +
+#   geom_sf(data = mergedPopn, aes(color = Common_Name_EN, fill = Common_Name_EN))+
+# ggrepel::geom_label_repel(data = labelpoint, 
+#                   aes(label = "Sockeye Salmon and Cultus Pygmy Sculpin", geometry = geom),stat = 'sf_coordinates', size = 3, nudge_y = -22000) +
+#   coord_sf(xlim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(1,3)],
+#            ylim = sf::st_bbox(st_buffer(mergedPopn,100000))[c(2,4)]) +
+#   # theme(legend.position = 'none') +
+#   labs(title = 'Distribution of Five Target Species in BC',
+#        fill = "Species Common Name",
+#        colour =  "Species Common Name") +
+#   #::theme_map() + 
+#   theme(plot.title = element_text(size = rel(2), face = "bold"),
+#         plot.subtitle = element_text(size = rel(1.8)),
+#         legend.title = element_text(size = rel(1.3)),
+#         legend.text = element_text(size = rel(1)),
+#         panel.background = element_blank(),
+#         legend.position = 'bottom',
+#         
+#   )
   
+mergedPopn_4326 = sf::st_transform(mergedPopn, 4326)
+
+mergedPopn_4326_polys = mergedPopn_4326 |> dplyr::filter(sf::st_geometry_type(geom) %in% c("POLYGON","MULTIPOLYGON"))
+
+# mergedPopn_4326_polys_s = sf::st_simplify(mergedPopn_4326_polys, dTolerance = 15)
+mergedPopn_4326_polys_s = rmapshaper::ms_simplify(mergedPopn_4326_polys, keep = 0.025)
+
+# mergedPopn_4326_polys_s |> dplyr::filter(sf::st_is_valid(geom))
+
+# unique(sf::st_geometry_type(mergedPopn_4326_polys$geom))
+# unique(sf::st_geometry_type(mergedPopn_4326_polys_s$geom))
+
+mergedPopn_4326_points = mergedPopn_4326 |> dplyr::filter(sf::st_geometry_type(geom) %in% c("POINT"))
+
+species_pal = leaflet::colorFactor("Set2",
+                                   domain = unique(mergedPopn_4326$Common_Name_EN))
+
+five_target_l = l
+
+unique_poly_species = unique(mergedPopn_4326$Common_Name_EN)
+
+for(i in 1:length(unique_poly_species)){
+  
+  this_is_polygon = TRUE
+  
+  the_species = unique_poly_species[i]
+  
+  if(the_species %in% c("Bull Trout","Sockeye Salmon")) this_is_polygon = F
+  
+  if(this_is_polygon){
+    five_target_l = five_target_l |> 
+      addPolygons(
+        data = mergedPopn_4326_polys_s |> dplyr::filter(Common_Name_EN == the_species),
+        opacity = 1,
+        fillOpacity = 0.8,
+        group = the_species,
+        fillColor = ~species_pal(Common_Name_EN),
+        color = ~species_pal(Common_Name_EN),
+        label = ~paste0(Common_Name_EN, ", ",Waterbody)
+      ) 
+  } else {
+    five_target_l = five_target_l |> 
+      addCircleMarkers(
+        data = mergedPopn_4326_points |> dplyr::filter(Common_Name_EN == the_species),
+        radius = 2,
+        opacity = 1,
+        fillOpacity = 0.8,
+        group = the_species,
+        fillColor = ~species_pal(Common_Name_EN),
+        color = ~species_pal(Common_Name_EN),
+        label = ~Common_Name_EN
+      )
+  }
+}
+
+five_target_l |>
+  addLegend(pal = species_pal,
+            values = unique(mergedPopn_4326$Common_Name_EN)) |> 
+  addLayersControl(baseGroups = c("openstreetmap","NatGeoWorldMap","white_bg"),
+                   overlayGroups = unique_poly_species,
+                   options = layersControlOptions(collapsed = F))
+
 ```
 
 ## Results {.tabset}
@@ -344,7 +448,7 @@ ggrepel::geom_label_repel(data = labelpoint,
 #### Map
 ```{r number_of_distinct_SAR_species_by_Subwatershed}
 #sp_colors<-c( "#EFFDB1ff","#BDD793ff","#8BB174ff","#598B56ff","#276537ff")
-cols_overlap <- c("#007bff", "#ff7f00", "#228b22", "purple")
+cols_overlap <- c("brown", "#ff7f00", "#228b22", "purple")
 #cols<-col_ramp(4)
 
 # We could trim the geometry of the Fraser River to just include the south coast region,
@@ -357,37 +461,62 @@ southcoast = southcoast[southcoast$REGION_NAME == 'South Coast Natural Resource 
 fraser = zqpmUseFilt[zqpmUseFilt$GNIS_NA == 'Fraser River',]
 fraser_clipped = sf::st_intersection(fraser, southcoast)
 
-zqpmUseFilt = zqpmUseFilt |> 
+zqpmUseFilt_no_fras = zqpmUseFilt |> 
   dplyr::filter(GNIS_NA != 'Fraser River') |> 
   dplyr::bind_rows(fraser_clipped)
 
-g = ggplot() + 
-  geom_sf(data = bc, alpha = 0.25) +
-  geom_sf(data = priority_wb_and_ds, col = 'grey') +
-  geom_sf(data = zqpmUseFilt, 
-          aes(fill = SARA_species,
-              colour = SARA_species), lwd = 1.8) + 
-  scale_fill_manual(values =  cols_overlap, na.value = "grey")+
-  scale_colour_manual(values =  cols_overlap, na.value = "grey")+
-  labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
-       subtitle = paste0("Waterbody count (N = ",nrow(zqpmUseFilt),")"),
-       fill = "Species Common Name",
-       colour =  "Species Common Name") +
-  # ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.8)),
-        legend.text = element_text(size = rel(1.2)),
-        panel.background = element_blank()
-        ) +
-  coord_sf(xlim = sf::st_bbox(priority_wb_and_ds)[c(1,3)],
-           ylim = sf::st_bbox(priority_wb_and_ds)[c(2,4)]) + 
-  ggspatial::annotation_scale()
+zqpmUseFilt_no_fras_s = sf::st_simplify(zqpmUseFilt_no_fras, dTolerance = 25)
 
+# g = ggplot() + 
+#   geom_sf(data = bc, alpha = 0.25) +
+#   geom_sf(data = zqpm, col = 'grey') +
+#   geom_sf(data = zqpmUseFilt_no_fras_s, 
+#           aes(fill = SARA_species,
+#               colour = SARA_species), lwd = 1.8) + 
+#   scale_fill_manual(values =  cols_overlap, na.value = "grey")+
+#   scale_colour_manual(values =  cols_overlap, na.value = "grey")+
+#   labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
+#        subtitle = paste0("Waterbody count (N = ",nrow(zqpmUseFilt_no_fras),")"),
+#        fill = "Species Common Name",
+#        colour =  "Species Common Name") +
+#   # ggthemes::theme_map()+
+#   theme(plot.title = element_text(size = rel(2), face = "bold"),
+#         plot.subtitle = element_text(size = rel(1.8)),
+#         legend.title = element_text(size = rel(1.8)),
+#         legend.text = element_text(size = rel(1.2)),
+#         panel.background = element_blank()
+#         ) +
+#   coord_sf(xlim = sf::st_bbox(zqpm)[c(1,3)],
+#            ylim = sf::st_bbox(zqpm)[c(2,4)]) + 
+#   ggspatial::annotation_scale()
+# 
+# 
+# if(!interactive()) {
+#   print(g)
+# }
 
-if(!interactive()) {
-  print(g)
-}
+zqpmUseFilt_no_fras_4326 = sf::st_transform(zqpmUseFilt_no_fras_s, 4326)
+
+overlap_pal = colorFactor(cols_overlap, domain = zqpmUseFilt_no_fras_4326$SARA_species)
+
+overlap_tables = leafpop::popupTable(
+  zqpmUseFilt_no_fras_4326 |> 
+    sf::st_drop_geometry() |> 
+    dplyr::select(WATERSH:SARA_species)
+)
+
+l |> 
+  addPolygons(
+    data = zqpmUseFilt_no_fras_4326,
+    color = ~overlap_pal(SARA_species),
+    fillColor = ~overlap_pal(SARA_species),
+    label = ~paste0(SARA_species,", ",GNIS_NA),
+    popup = lapply(overlap_tables, htmltools::HTML)
+  ) |> 
+  addLegend(title = "Species Common Names",
+            pal = overlap_pal, values = unique(zqpmUseFilt_no_fras_4326$SARA_species)) |> 
+  addLayersControl(baseGroups = c("openstreetmap","NatGeoWorldMap","white_bg"),
+                   options = layersControlOptions(collapsed = F))
 
 ```
 
@@ -401,87 +530,7 @@ DT::datatable(
     dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |>
     dplyr::mutate(SARA_species = replace_na(SARA_species, "None")) |> 
     dplyr::select(`Waterbody Name` = GNIS_NA,
-                  InvasionRisk,
-                  `Number of SARA-listed Species` = number_distinct_SAR,
-                  `SARA-listed species` = SARA_species),
-    options = list(
-            columnDefs = list(list(className = 'dt-center', targets = 0:4))
-            )
-)
-```
-
-### Overlap in Columbia and Fraser River Watersheds {.tabset}
-```{r filter_overlap_to_regions}
-fras = sf::read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |>
-dplyr::summarise() |> 
-  dplyr::mutate(watershed = 'Fraser')
-
-columbia = sf::read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |>
-dplyr::summarise() |> 
-  dplyr::mutate(watershed = 'Columbia')
-
-watersheds = dplyr::bind_rows(fras, columbia) |>
-  # dplyr::summarise() |> 
-  sf::st_transform(3005)
-
-zqpm_in_watersheds = zqpmUseFilt |> 
-  sf::st_join(watersheds)
-
-# zqpm_in_watersheds |> 
-#   st_drop_geometry() |> 
-#   count(GNIS_NA,watershed) |> 
-#   View()
-# zqpm_in_watersheds = sf::st_intersection(
-#   zqpmUseFilt,
-#   watersheds 
-# )
-
-```
-
-#### Map
-```{r results_as_map}
-g = ggplot() + 
-  geom_sf(data = bc, alpha = 0.25, fill = 'grey') +
-  geom_sf(data = priority_wb_and_ds, col = 'grey') +
-  geom_sf(data = fras, col = 'grey', fill = 'white') +
-  geom_sf(data = columbia, col = 'grey', fill = 'white') +
-  geom_sf(data = zqpm_in_watersheds,
-          aes(fill = SARA_species,
-              colour = SARA_species), lwd = 1.8) + 
-  scale_fill_manual(values =  cols_overlap, na.value = "grey")+
-  scale_colour_manual(values =  cols_overlap, na.value = "grey")+
-  labs(title = 'Number of Distinct SARA-listed Species by Priority Waterbody',
-       subtitle = paste0("Waterbody count (N = ",nrow(zqpm_in_watersheds),")"),
-       caption = "(Fraser and Columbia River Watersheds)",
-       fill = "Species Common Name",
-       colour =  "Species Common Name") +
-  # ggthemes::theme_map()+
-  theme(plot.title = element_text(size = rel(2), face = "bold"),
-        plot.subtitle = element_text(size = rel(1.8)),
-        legend.title = element_text(size = rel(1.8)),
-        legend.text = element_text(size = rel(1.2)),
-        panel.background = element_blank()
-        ) +
-  coord_sf(xlim = sf::st_bbox(watersheds)[c(1,3)],
-           ylim = sf::st_bbox(watersheds)[c(2,4)]) + 
-  ggspatial::annotation_scale()
-
-
-if(!interactive()) {
-  print(g)
-}
-```
-
-#### Table
-```{r results_as_table}
-DT::datatable(
-  zqpm_in_watersheds |>
-    sf::st_drop_geometry() |>
-    dplyr::select(-WATERSH, -WATERBO) |>
-    dplyr::mutate(number_distinct_SAR = replace_na(number_distinct_SAR, 0)) |>
-    dplyr::mutate(SARA_species = replace_na(SARA_species, "None")) |> 
-    dplyr::select(Watershed = watershed,
-                  `Waterbody Name` = GNIS_NA,
+                  `Sampling Frequency` = sampling_freq,
                   InvasionRisk,
                   `Number of SARA-listed Species` = number_distinct_SAR,
                   `SARA-listed species` = SARA_species),
