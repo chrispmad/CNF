@@ -230,9 +230,9 @@ if(jump_point == 'filter_for_fraser_columbia_priority_region'){
   print(paste0("About to filter DFO dataset to just Fraser / Columbia River Watersheds / Areas at ",Sys.time()))
   
   # Make polygon for Fraser River and Colombia River basin polygon
-  fr = read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
+  fr = read_sf("//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
     dplyr::summarise()
-  cl = read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
+  cl = read_sf("//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
     dplyr::summarise()
   
   pr = fr |> 

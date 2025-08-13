@@ -66,15 +66,15 @@ occ_dat_b |>
   count(Species, sort = T)
 
 # Bring in species at risk layer.
-sp = read_sf('W:/CMadsen/Projects/SpeciesAtRisk/species_ecosystems_at_risk_publically_available.shp') |> 
+sp = read_sf('//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/Projects/SpeciesAtRisk/species_ecosystems_at_risk_publically_available.shp') |> 
   st_transform(4326)
 
 sp = st_make_valid(sp)
 
 # Make polygon for Fraser River and Colombia River basin polygon
-fr = read_sf("W:/CMadsen/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
+fr = read_sf("//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/shared_data_sets/fraser_watershed_priority_area.gpkg") |> 
   dplyr::summarise()
-cl = read_sf("W:/CMadsen/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
+cl = read_sf("//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/shared_data_sets/columbia_watershed_priority_area.gpkg") |> 
   dplyr::summarise()
 
 pr = fr |> 
@@ -82,7 +82,7 @@ pr = fr |>
   dplyr::summarise()
 
 # Federal critical habitat
-fch = sf::read_sf('W:/CMadsen/shared_data_sets/DFO_SARA_CriticalHabitat_in_ColFras_Regions.shp')
+fch = sf::read_sf('//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/shared_data_sets/DFO_SARA_CriticalHabitat_in_ColFras_Regions.shp')
 
 # Just keep occ_dat and aquatic SAR inside our priority region
 occ_dat_f = occ_dat_b |> 
